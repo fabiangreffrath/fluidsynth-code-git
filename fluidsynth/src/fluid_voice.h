@@ -106,10 +106,10 @@ struct _fluid_voice_t
   fluid_real_t root_pitch;
 
   /* sample and loop start and end points (offset in sample memory) */
-  int start_offset;
-  int end_offset;
-  int loop_start_offset;
-  int loop_end_offset;
+  int sample_start;
+  int sample_end;
+  int loop_start;
+  int loop_end;
 
   /* master gain */
   fluid_real_t synth_gain;
@@ -119,7 +119,8 @@ struct _fluid_voice_t
   unsigned int volenv_count;
   int volenv_section;
   fluid_real_t volenv_val;
-  fluid_real_t amplitude_that_reaches_noise_floor;
+  fluid_real_t amplitude_that_reaches_noise_floor_nonloop;
+  fluid_real_t amplitude_that_reaches_noise_floor_loop;
 
   /* mod env */
   fluid_env_data_t modenv_data[FLUID_VOICE_ENVLAST];
@@ -138,20 +139,20 @@ struct _fluid_voice_t
   fluid_real_t modlfo_to_vol; 
 
   /* vib lfo */
-  fluid_real_t viblfo_val;          /* the value of the vibrato LFO */
-  unsigned int viblfo_delay;       /* the delay of the lfo in samples */
-  fluid_real_t viblfo_incr;         /* the lfo frequency is converted to a per-buffer increment */ 
+  fluid_real_t viblfo_val;        /* the value of the vibrato LFO */
+  unsigned int viblfo_delay;      /* the delay of the lfo in samples */
+  fluid_real_t viblfo_incr;       /* the lfo frequency is converted to a per-buffer increment */ 
   fluid_real_t viblfo_to_pitch; 
 
   /* resonant filter */
-  fluid_real_t fres;                /* the resonance frequency, in cents (not absolute cents) */
-  fluid_real_t last_fres;           /* Current resonance frequency of the IIR filter */
-                                   /* Serves as a flag: A deviation between fres and last_fres */
-                                   /* indicates, that the filter has to be recalculated. */
-  fluid_real_t q_lin;               /* the q-factor on a linear scale */
-  fluid_real_t filter_gain;         /* Gain correction factor, depends on q */
-  fluid_real_t hist1, hist2;        /* Sample history for the IIR filter */
-  int filter_startup;              /* Flag: If set, the filter will be set directly. 
+  fluid_real_t fres;              /* the resonance frequency, in cents (not absolute cents) */
+  fluid_real_t last_fres;         /* Current resonance frequency of the IIR filter */
+                                  /* Serves as a flag: A deviation between fres and last_fres */
+                                  /* indicates, that the filter has to be recalculated. */
+  fluid_real_t q_lin;             /* the q-factor on a linear scale */
+  fluid_real_t filter_gain;       /* Gain correction factor, depends on q */
+  fluid_real_t hist1, hist2;      /* Sample history for the IIR filter */
+  int filter_startup;             /* Flag: If set, the filter will be set directly. 
 				      Else it changes smoothly. */
 
   /* filter coefficients */
@@ -230,7 +231,6 @@ int fluid_voice_kill_excl(fluid_voice_t* voice);
 fluid_real_t fluid_voice_get_lower_boundary_for_attenuation(fluid_voice_t* voice);
 fluid_real_t fluid_voice_determine_amplitude_that_reaches_noise_floor_for_sample(fluid_voice_t* voice);
 void fluid_voice_check_sample_sanity(fluid_voice_t* voice);
-void fluid_voice_gen_incr(fluid_voice_t* voice, int gen, float val);
 
 #define fluid_voice_set_id(_voice, _id)  { (_voice)->id = (_id); }
 #define fluid_voice_get_chan(_voice)     (_voice)->chan

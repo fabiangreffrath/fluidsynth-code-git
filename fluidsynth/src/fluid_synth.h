@@ -38,6 +38,7 @@
 #include "fluid_chorus.h"
 #include "fluid_ladspa.h"
 #include "fluid_midi_router.h"
+#include "fluid_sys.h"
 
 /***************************************************************
  *
@@ -131,6 +132,10 @@ struct _fluid_synth_t
   fluid_tuning_t* cur_tuning;         /** current tuning in the iteration */ 
 
   fluid_midi_router_t* midi_router;     /* The midi router. Could be done nicer. */
+  fluid_mutex_t busy;                   /* Indicates, whether the audio thread is currently running. 
+					 * Note: This simple scheme does -not- provide 100 % protection against
+					 * thread problems, for example from MIDI thread and shell thread
+					 */
 #ifdef LADSPA
   fluid_LADSPA_FxUnit_t* LADSPA_FxUnit; /** Effects unit for LADSPA support */
 #endif
@@ -185,6 +190,9 @@ void fluid_synth_print_voice(fluid_synth_t* synth);
  *  (NULL is okay). This function is called after a SoundFont is
  *  unloaded or reloaded. */
 void fluid_synth_update_presets(fluid_synth_t* synth);
+
+
+int fluid_synth_update_gain(fluid_synth_t* synth, char* name, double value);
 
 /*
  * misc

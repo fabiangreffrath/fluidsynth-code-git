@@ -1,22 +1,13 @@
-/* FluidSynth - A Software Synthesizer
- *
- * Copyright (C) 2003  Peter Hanappe and others.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *  
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the Free
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- * 02111-1307, USA
- */
+/*
+
+  Freeverb
+
+  Written by Jezar at Dreampoint, June 2000
+  http://www.dreampoint.co.uk
+  This code is public domain
+
+  Translated to C by Peter Hanappe, Mai 2001
+*/
 
 #include "fluid_rev.h"
 
@@ -24,13 +15,6 @@
  *
  *                           REVERB
  */
-/*
- Written by Jezar at Dreampoint, June 2000
- http://www.dreampoint.co.uk
- This code is public domain
-
- Translated to C by Peter Hanappe, Mai 2001
-*/
 
 /* Denormalising: 
  *
@@ -75,7 +59,7 @@
 
 
 //#define DC_OFFSET 1e-6
-#define DC_OFFSET 0.0
+#define DC_OFFSET 0.001f
 typedef struct _fluid_allpass fluid_allpass;
 typedef struct _fluid_comb fluid_comb;
 
@@ -182,7 +166,7 @@ fluid_comb_init(fluid_comb* comb)
   fluid_real_t* buf = comb->buffer;
   int len = comb->bufsize;
   for (i = 0; i < len; i++) {
-    buf[i]=DC_OFFSET; /* This is not 100 % correct. */
+    buf[i] = DC_OFFSET; /* This is not 100 % correct. */
   }
 }
 
@@ -335,6 +319,7 @@ new_fluid_revmodel()
   if (rev == NULL) {
     return NULL;
   }
+
   /* Tie the components to their buffers */
   fluid_comb_setbuffer(&rev->combL[0], rev->bufcombL1, combtuningL1);
   fluid_comb_setbuffer(&rev->combR[0], rev->bufcombR1, combtuningR1);
@@ -369,10 +354,16 @@ new_fluid_revmodel()
   fluid_allpass_setfeedback(&rev->allpassR[2], 0.5f);
   fluid_allpass_setfeedback(&rev->allpassL[3], 0.5f);
   fluid_allpass_setfeedback(&rev->allpassR[3], 0.5f);
-  fluid_revmodel_setlevel(rev, initialwet);
-  fluid_revmodel_setroomsize(rev, initialroom);
-  fluid_revmodel_setdamp(rev, initialdamp);
-  fluid_revmodel_setwidth(rev, initialwidth);
+
+  /* set values manually, since calling set functions causes update
+     and all values should be initialized for an update */
+  rev->roomsize = initialroom * scaleroom + offsetroom;
+  rev->damp = initialdamp * scaledamp;
+  rev->wet = initialwet * scalewet;
+  rev->width = initialwidth;
+
+  /* now its okay to update reverb */
+  fluid_revmodel_update (rev);
 
   /* Clear all buffers */
   fluid_revmodel_init(rev);
@@ -413,6 +404,7 @@ fluid_revmodel_processreplace(fluid_revmodel_t* rev, fluid_real_t *in,
   fluid_real_t outL, outR, input;
 
   for (k = 0; k < FLUID_BUFSIZE; k++) {
+
     outL = outR = 0;
     input = in[k] + DC_OFFSET;
 
@@ -445,8 +437,9 @@ fluid_revmodel_processmix(fluid_revmodel_t* rev, fluid_real_t *in,
   fluid_real_t outL, outR, input;
 
   for (k = 0; k < FLUID_BUFSIZE; k++) {
+
     outL = outR = 0;
-    input = in[k]+0.001;
+    input = in[k] + DC_OFFSET;
 
     /* Accumulate comb filters in parallel */
     for (i = 0; i < numcombs; i++) {
@@ -460,8 +453,8 @@ fluid_revmodel_processmix(fluid_revmodel_t* rev, fluid_real_t *in,
     }
 
     /* Remove the DC offset */
-    outL-=DC_OFFSET;
-    outR-=DC_OFFSET;
+    outL -= DC_OFFSET;
+    outR -= DC_OFFSET;
 
     /* Calculate output MIXING with anything already there */
     left_out[k] += outL * rev->wet1 + outR * rev->wet2;
@@ -499,6 +492,7 @@ fluid_revmodel_update(fluid_revmodel_t* rev)
 void 
 fluid_revmodel_setroomsize(fluid_revmodel_t* rev, fluid_real_t value)
 {
+/*   fluid_clip(value, 0.0f, 1.0f); */
   rev->roomsize = (value * scaleroom) + offsetroom;
   fluid_revmodel_update(rev);
 }
@@ -512,6 +506,7 @@ fluid_revmodel_getroomsize(fluid_revmodel_t* rev)
 void 
 fluid_revmodel_setdamp(fluid_revmodel_t* rev, fluid_real_t value)
 {
+/*   fluid_clip(value, 0.0f, 1.0f); */
   rev->damp = value * scaledamp;
   fluid_revmodel_update(rev);
 }
@@ -525,6 +520,7 @@ fluid_revmodel_getdamp(fluid_revmodel_t* rev)
 void 
 fluid_revmodel_setlevel(fluid_revmodel_t* rev, fluid_real_t value)
 {
+/*   fluid_clip(value, 0.0f, 1.0f); */
   rev->wet = value * scalewet;
   fluid_revmodel_update(rev);
 }
@@ -538,6 +534,7 @@ fluid_revmodel_getlevel(fluid_revmodel_t* rev)
 void 
 fluid_revmodel_setwidth(fluid_revmodel_t* rev, fluid_real_t value)
 {
+/*   fluid_clip(value, 0.0f, 1.0f); */
   rev->width = value;
   fluid_revmodel_update(rev);
 }

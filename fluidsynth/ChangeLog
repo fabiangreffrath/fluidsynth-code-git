@@ -1,3 +1,147 @@
+2003-08-25  Josh Green  <jgreen@users.sourceforge.net>
+
+	Release version 1.0.3
+
+	* doc/fluidsynth.1: Applied typo patch from Eric Van Buggenhaut.
+	* TODO: Restructuring TODO file (removing old stuff).
+	* doc/Doxyfile: Disabled Tex doxygen generation and changed
+	OUTPUT_DIRECTORY to api/.
+	* doc/Makefile.am: Added an update-docs target and related for updating
+	developer doc and doxygen reference HTML. Also added update-docs to
+	dist-hook for updating before distribution packaging.
+	* include/fluidsynth/synth.h: Some fixes to doxygen documentation.
+	* fluidsynth.spec.in: New RPM spec file which is generated at configure
+	time.
+	* Makefile.am: Added fluidsynth.spec(.in) to EXTRA_DIST.
+
+2003-08-19  Josh Green  <jgreen@users.sourceforge.net>
+
+	* src/fluid_alsa.c: Added some calls to snd_strerror() to print out
+	details of ALSA routine failures.
+	* src/fluid_defsfont.c: Put a message about SoundFont loading code
+	being borrowed from Smurf SoundFont Editor.
+	* src/fluid_rev.c: Valgrind found that some values were being used
+	uninitialized because fluid_revmodel_update() was being called before
+	all reverb parameters were set, now setting manually and then calling
+	update routine.
+	* src/fluid_voice.c: Increased FLUID_MAX_AUDIBLE_FILTER_FC to minimize
+	clicks from filter toggling. Added a FLUID_MIN_VOLENVRELEASE constant
+	to set the minimum volume envelope release to minimize clicks.
+
+2003-07-22  Josh Green  <jgreen@users.sourceforge.net>
+
+	* src/fluid_midishare.c: Added include of header "config.h" as
+	per Albert Graef's request.
+	* src/fluid_voice.c (fluid_voice_optimize_sample): Moved a
+	variable declaration to the beginning of function, it was
+	causing problems with at least one user.
+
+2003-06-28  Josh Green  <jgreen@users.sourceforge.net>
+
+	* src/fluid_defsfont.c: Moved call to fluid_voice_optimize_sample
+	from fluid_inst_zone_import_sfont to fluid_defsfont_load. Also
+	reduced minimum sample size before rejection from 48 to 8 (could
+	be lower?).
+	* src/fluid_voice.c (fluid_voice_optimize_sample): Added a check
+	for sample->valid to ignore ROM samples which was causing a crash
+	with Vintage Dreams and other SoundFont files with ROM samples.
+
+2003-06-17  Josh Green  <jgreen@users.sourceforge.net>
+
+	Release version 1.0.2
+	Added Makefile.am files where lacking.
+
+	* Makefile.am: Fixes to "make dist" target by adding macbuild, sf2
+	and winbuild to SUBDIRS also removed acconfig.h from EXTRA_DIST.
+	* acinclude.m4: Removed AC_JACK, now using pkgconfig.
+	* configure.ac: Updated to version 1.0.2, Jack test now using
+	pkgconfig and built by default if found, coreaudio driver now built
+	by default if found.
+	* doc/Makefile.am: Added Doxyfile, example.c, example.sf2, fluidsynth.1
+	and fluidsynth-v10-devdoc.xml to EXTRA_DIST.
+	* src/Makefile.am: fluid_jack.c now conditionally built, fluid_sse.h
+	added to EXTRA_DIST.
+	* src/fluid_jack.c: #if JACK_SUPPORT removed as its not needed.
+
+2003-06-15  Josh Green  <jgreen@users.sourceforge.net>
+
+	* configure.ac: Fixed detection of CoreAudio by looking for
+	CoreAudio/AudioHardware.h.
+	* src/Makefile.am: Added COREAUDIO_CFLAGS and COREAUDIO_LIBS.
+	* src/fluid_coreaudio.c: Added CoreAudio prefix to #include headers
+	(fluid_core_audio_callback): Fixed declarition to match that of the
+	typedef in CoreAudio header to stop warnings.
+	* fluidsynth.c: Now including fluidsynth_priv.h to include the arch
+	specific definitions in there (perhaps should be done in configure
+	script though).
+	* fluidsynth_priv.h: Added "#define WITHOUT_SERVER 1" to Darwin build.
+
+2003-06-12  Josh Green  <jgreen@users.sourceforge.net>
+
+	* Makefile.am: Added autogen.sh to EXTRA_DIST
+	* acinclude.m4: Added AM_PATH_READLINE macro for readline detection
+	and prefix configuration.
+	* configure.ac: Support for MinGW32 build, Darwin build fixes,
+	configure CFLAGS input value now honored, fixes to CoreAudio support,
+	and better readline detection and config.
+	* src/Makefile.am: Now conditionally compiling CoreAudio and Windows
+	sources, added config_*.h files to EXTRA_DIST, some stuff for MinGW32
+	build, READLINE_LIBS and READLINE_CFLAGS now used.
+	* src/fluid_dsound.c: Fixed some warnings by adding "void" for
+	empty parameter procedure declarations.
+	* src/fluidsynth.c: Don't include config_win32.h if MinGW32.
+	* src/fluidsynth_priv.h: Stuff for MinGW32 and Darwin builds.
+	* doc/fluidsynth-v10-devdoc.xml: Applied a diff from
+	Alexandre Prokoudine.
+
+2003-06-09  Josh Green  <jgreen@users.sourceforge.net>
+
+	* src/fluid_alsa.c: Added calls to pthread_attr_setschedparam to
+	properly create SCHED_FIFO threads.
+	* src/fluid_oss.c: pthread_attr_setschedparam calls added.
+	* src/fluid_midishare.c: Patch update from Stephane Letz.
+
+2003-05-29  root  <mn@bongo>
+
+	* src/fluid_synth.c (fluid_synth_one_block): Added a mutex that provides a small degree of 
+	protection against noteons / noteoffs, when the audio thread is working.
+
+	* src/fluid_synth.h (struct _fluid_synth_t): 
+
+	* src/fluid_voice.c (fluid_voice_optimize_sample): 
+
+2003-05-29  Markus Nentwig  <nentwig@users.sourceforge.net>
+
+	* include/fluidsynth/voice.h: added fluid_voice_gen_incr to api
+	* src/fluidsynth.c: Added error message for command line parameter handling
+	* src/fluid_voice.c (fluid_voice_optimize_sample): Removed loop peak detection 
+	at run time, because it caused dropouts. Now the sound font loader or application 
+	is responsible to call fluid_voice_optimize_sample (if it doesn't, the turnoff optimization is 
+	simply disabled).
+	
+2003-04-029  Antoine Schmitt  <as@gratin.org>
+
+	* src/fluid_defsfont.c: inst_zone lokey is now properly inialized to 0
+	(it was not, leading to random lost noteons depending on memory
+	initialization)
+
+2003-04-03  Peter Hanappe  <peter@hanappe.com>
+
+	* src/fluid_rev.c: reverb parameters are clipped to their valid
+	range.
+
+	* src/fluid_alsa.c: using fluid_alsa_audio_run_s16 as default
+	function. This reduces the high CPU usage.
+
+	* src/fluid_voice.c (fluid_voice_write): filter interpolation done
+	over only 1 buffer to avoid filter instability
+
+	* src/fluid_chan.c (fluid_channel_init): bank number set to 128
+	for the drum channel
+
+	* src/fluid_midi.c (fluid_midi_file_read_event): Correctly reading
+	pitchbend value
+
 2003-02-27  Josh Green  <jgreen@users.sourceforge.net>
 
 	Updated automake files (automake 1.6).

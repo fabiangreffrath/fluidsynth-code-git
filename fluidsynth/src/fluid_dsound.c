@@ -38,8 +38,8 @@ new_fluid_dsound_audio_driver(fluid_settings_t* settings, fluid_synth_t* synth);
 int delete_fluid_dsound_audio_driver(fluid_audio_driver_t* data);
 DWORD WINAPI fluid_dsound_audio_run(LPVOID lpParameter);
 
-int fluid_win32_create_window();
-int fluid_win32_destroy_window();
+int fluid_win32_create_window(void);
+int fluid_win32_destroy_window(void);
 long FAR PASCAL fluid_win32_wndproc(HWND hWnd, unsigned message, WPARAM wParam, LPARAM lParam);
 char* fluid_win32_error(HRESULT hr);
 
@@ -202,7 +202,7 @@ new_fluid_dsound_audio_driver(fluid_settings_t* settings, fluid_synth_t* synth)
   hr = IDirectSoundBuffer_Lock(dev->sec_buffer, 0, 0, (void*) &buf1, &bytes1, 0, 0, DSBLOCK_ENTIREBUFFER);
 
   if ((hr != DS_OK) || (buf1 == NULL)) {
-    FLUID_LOG(FLUID_PANIC, "Failed to lock the audio buffer. System lockup might follow. Exiting.\n");
+    FLUID_LOG(FLUID_PANIC, "Failed to lock the audio buffer. Exiting.\n");
     goto error_recovery;
   }
 
@@ -210,7 +210,7 @@ new_fluid_dsound_audio_driver(fluid_settings_t* settings, fluid_synth_t* synth)
   memset(buf1, 0, bytes1);
 
   /* Unlock */
-  IDirectSoundCaptureBuffer_Unlock(dev->sec_buffer, buf1, bytes1, 0, 0);
+  IDirectSoundBuffer_Unlock(dev->sec_buffer, buf1, bytes1, 0, 0);
 
 
   /* start the audio thread */
@@ -324,7 +324,7 @@ DWORD WINAPI fluid_dsound_audio_run(LPVOID lpParameter)
       }
 
       /* Unlock */
-      IDirectSoundCaptureBuffer_Unlock(dev->sec_buffer, buf1, bytes1, buf2, bytes2);
+      IDirectSoundBuffer_Unlock(dev->sec_buffer, buf1, bytes1, buf2, bytes2);
             
       if (cur_position >= dev->queue_byte_size) {
 	cur_position -= dev->queue_byte_size;
@@ -371,7 +371,7 @@ long FAR PASCAL fluid_win32_wndproc(HWND hWnd, unsigned message, WPARAM wParam, 
   return(0L);
 }
 
-int fluid_win32_create_window() 
+int fluid_win32_create_window(void)
 {
   WNDCLASS myClass;
   myClass.hCursor = LoadCursor( NULL, IDC_ARROW );
@@ -397,7 +397,7 @@ int fluid_win32_create_window()
   return 0;
 }
 
-int fluid_win32_destroy_window() 
+int fluid_win32_destroy_window(void)
 {
   if (fluid_wnd != NULL) {
     DestroyWindow(fluid_wnd);

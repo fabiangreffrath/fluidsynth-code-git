@@ -6,6 +6,9 @@
 /* whether or not we are supporting CoreAudio */
 #undef COREAUDIO_SUPPORT
 
+/* Define if building for Mac OS X Darwin */
+#undef DARWIN
+
 /* Define to activate debugging message */
 #undef DEBUG
 
@@ -27,9 +30,6 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if you have the <jack/jack.h> header file. */
-#undef HAVE_JACK_JACK_H
-
 /* whether or not we are supporting ladcca */
 #undef HAVE_LADCCA
 
@@ -38,9 +38,6 @@
 
 /* Define to 1 if you have the `dl' library (-ldl). */
 #undef HAVE_LIBDL
-
-/* Define to 1 if you have the `jack' library (-ljack). */
-#undef HAVE_LIBJACK
 
 /* Define to 1 if you have the `MidiShare' library (-lMidiShare). */
 #undef HAVE_LIBMIDISHARE
@@ -71,6 +68,9 @@
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H
+
+/* Define to 1 if you have the <signal.h> header file. */
+#undef HAVE_SIGNAL_H
 
 /* Define to 1 if you have the <stdarg.h> header file. */
 #undef HAVE_STDARG_H
@@ -114,6 +114,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define to 1 if you have the <windows.h> header file. */
+#undef HAVE_WINDOWS_H
+
 /* Define to enable JACK driver */
 #undef JACK_SUPPORT
 
@@ -122,6 +125,9 @@
 
 /* Define to enable MidiShare driver */
 #undef MIDISHARE_SUPPORT
+
+/* Define if using the MinGW32 environment */
+#undef MINGW32
 
 /* Define to enable OSS driver */
 #undef OSS_SUPPORT

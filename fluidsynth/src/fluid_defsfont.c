@@ -2,6 +2,9 @@
  *
  * Copyright (C) 2003  Peter Hanappe and others.
  *
+ * SoundFont file loading code borrowed from Smurf SoundFont Editor
+ * Copyright (C) 1999-2001 Josh Green
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public License
  * as published by the Free Software Foundation; either version 2 of
@@ -20,9 +23,9 @@
 
 
 #include "fluid_defsfont.h"
+/* Todo: Get rid of that 'include' */
 #include "fluid_sys.h"
-#include "fluid_voice.h"
- 
+
 /***************************************************************
  *
  *                           SFONT LOADER
@@ -313,6 +316,7 @@ int fluid_defsfont_load(fluid_defsfont_t* sfont, const char* file)
       return FLUID_FAILED;
     }
     fluid_defsfont_add_sample(sfont, sample);
+    fluid_voice_optimize_sample(sample);
     p = fluid_list_next(p);
   }
 
@@ -604,7 +608,7 @@ fluid_defpreset_noteon(fluid_defpreset_t* preset, fluid_synth_t* synth, int chan
       
       /* run thru all the zones of this instrument */
       inst_zone = fluid_inst_get_zone(inst);
-      while (inst_zone != NULL) {
+	  while (inst_zone != NULL) {
 	
 	/* make sure this instrument zone has a valid sample */
 	sample = fluid_inst_zone_get_sample(inst_zone);
@@ -794,7 +798,7 @@ fluid_defpreset_noteon(fluid_defpreset_t* preset, fluid_synth_t* synth, int chan
 
 	inst_zone = fluid_inst_zone_next(inst_zone);
       }
-    }
+	}
     preset_zone = fluid_preset_zone_next(preset_zone);
   }
 
@@ -1311,6 +1315,7 @@ new_fluid_inst_zone(char* name)
   }
   FLUID_STRCPY(zone->name, name);
   zone->sample = NULL;
+  zone->keylo = 0;
   zone->keyhi = 128;
   zone->vello = 0;
   zone->velhi = 128;
@@ -1380,7 +1385,7 @@ fluid_inst_zone_import_sfont(fluid_inst_zone_t* zone, SFZone *sfzone, fluid_defs
   if ((sfzone->instsamp != NULL) && (sfzone->instsamp->data != NULL)) {
     zone->sample = fluid_defsfont_get_sample(sfont, ((SFSample *) sfzone->instsamp->data)->name);
     if (zone->sample == NULL) {
-      FLUID_LOG(FLUID_ERR, "Couldnt fins sample name");
+      FLUID_LOG(FLUID_ERR, "Couldn't find sample name");
       return FLUID_FAILED;
     }
   }
@@ -1604,7 +1609,7 @@ fluid_sample_import_sfont(fluid_sample_t* sample, SFSample* sfsample, fluid_defs
     sample->valid = 0;
     FLUID_LOG(FLUID_WARN, "Ignoring sample %s: can't use ROM samples", sample->name);
   }
-  if (sample->end - sample->start < 48) {
+  if (sample->end - sample->start < 8) {
     sample->valid = 0;
     FLUID_LOG(FLUID_WARN, "Ignoring sample %s: too few sample data points", sample->name);
   } else {
@@ -1630,7 +1635,9 @@ fluid_sample_import_sfont(fluid_sample_t* sample, SFSample* sfsample, fluid_defs
 
 
 
-/*=================================sfload.c========================*/
+/*=================================sfload.c========================
+  Borrowed from Smurf SoundFont Editor by Josh Green
+  =================================================================*/
 
 /*
    functions for loading data from sfont files, with appropriate byte swapping
@@ -2965,7 +2972,9 @@ fixup_sample (SFData * sf)
   return (OK);
 }
 
-/*=================================sfont.c========================*/
+/*=================================sfont.c========================
+  Smurf SoundFont Editor
+  ================================================================*/
 
 
 /* optimum chunk area sizes (could be more optimum) */

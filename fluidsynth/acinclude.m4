@@ -37,43 +37,6 @@ AC_DEFUN(AC_MIDISHARE,
 ])
 
 
-AC_DEFUN(AC_JACK,
-[
-
-  jack_support=no
-
-  AC_ARG_ENABLE(jack-support,
-    [  --enable-jack-support   Compile JACK support],
-    [jack_support=$enableval])
-
-
-  JACK_SUPPORT=0 
-
-  if test "x$jack_support" != "xno"; then
-
-    AC_CHECK_HEADERS(jack/jack.h)
-
-    if test "${ac_cv_header_jack_jack_h}" = "yes"; then
-
-	jack_found=yes
- 	AC_CHECK_LIB([jack], [jack_client_new],, [jack_found=no])
- 
- 	if test "x$jack_found" = "xyes" ; then
- 	    JACK_SUPPORT=1
- 	    AC_DEFINE(JACK_SUPPORT, 1, [Define to enable JACK driver])
-	fi
- 
- 	if test "x$jack_found" = "xno" ; then
-       	    AC_MSG_WARN([ *** Could not find the required JACK library])
- 	fi dnl  jack_found = yes test
- 
-     else
-         AC_MSG_WARN([ *** Could not find jack.h, disabling JACK driver])
-     fi	dnl  jack.h header test
-   fi	dnl  enable_jack_support != no?
-])
-
-
 dnl Copied from Josh Green's Smurf SoundFont Editor
 dnl   Peter Hanappe, 21/05/2001
 dnl
@@ -194,7 +157,7 @@ AC_LANG_C
 AC_TRY_COMPILE([
 #include <alsa/asoundlib.h>
 ], [
-void main(void)
+int main(void)
 {
 /* ensure backward compatibility */
 #if !defined(SND_LIB_MAJOR) && defined(SOUNDLIB_VERSION_MAJOR)
@@ -255,4 +218,74 @@ fi
 dnl That should be it.  Now just export out symbols:
 AC_SUBST(ALSA_CFLAGS)
 AC_SUBST(ALSA_LIBS)
+])
+
+
+dnl Configure Paths for readline (Josh Green 2003-06-10)
+dnl
+dnl AM_PATH_READLINE([ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND]])
+dnl Test for readline, and define READLINE_CFLAGS and
+dnl READLINE_LIBS as appropriate.
+dnl enables arguments --with-readline-prefix=
+
+AC_DEFUN(AM_PATH_READLINE,
+[dnl Save the original CFLAGS, and LIBS
+save_CFLAGS="$CFLAGS"
+save_LIBS="$LIBS"
+readline_found=yes
+
+dnl
+dnl Setup configure options
+dnl
+AC_ARG_WITH(readline-prefix,
+  [  --with-readline-prefix=PATH  Path where readline is (optional)],
+  [readline_prefix="$withval"], [readline_prefix=""])
+
+AC_MSG_CHECKING(for readline)
+
+dnl Add readline to the LIBS path
+READLINE_LIBS="-lreadline"
+
+if test "${readline_prefix}" != "" ; then
+  READLINE_LIBS="-L${readline_prefix}/lib $READLINE_LIBS"
+  READLINE_CFLAGS="-I${readline_prefix}/include"
+else
+  READLINE_CFLAGS=""
+fi
+
+LIBS="$READLINE_LIBS $LIBS"
+CFLAGS="$READLINE_CFLAGS $CFLAGS"
+
+AC_TRY_COMPILE([
+#include <stdio.h>
+#include <readline/readline.h>
+], [
+int main(void)
+{
+#ifndef readline
+   return (1);
+#else
+   return (0);
+#endif
+}
+],
+  [AC_MSG_RESULT(found.)],
+  [AC_MSG_RESULT(not present.)
+   readline_found=no]
+)
+
+CFLAGS="$save_CFLAGS"
+LIBS="$save_LIBS"
+
+if test "x$readline_found" = "xyes" ; then
+   ifelse([$1], , :, [$1])
+else
+   READLINE_CFLAGS=""
+   READLINE_LIBS=""
+   ifelse([$2], , :, [$2])
+fi
+
+dnl That should be it.  Now just export out symbols:
+AC_SUBST(READLINE_CFLAGS)
+AC_SUBST(READLINE_LIBS)
 ])

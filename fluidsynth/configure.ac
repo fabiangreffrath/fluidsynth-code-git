@@ -6,7 +6,7 @@ AC_INIT(src/fluidsynth.c)
 
 FLUIDSYNTH_VERSION_MAJOR=1
 FLUIDSYNTH_VERSION_MINOR=0
-FLUIDSYNTH_VERSION_MICRO=0
+FLUIDSYNTH_VERSION_MICRO=3
 FLUIDSYNTH_VERSION=$FLUIDSYNTH_VERSION_MAJOR.$FLUIDSYNTH_VERSION_MINOR.$FLUIDSYNTH_VERSION_MICRO
 
 AC_SUBST(FLUIDSYNTH_VERSION_MAJOR)
@@ -26,10 +26,13 @@ AC_SUBST(LIBFLUIDSYNTH_MIN)
 
 AM_CONFIG_HEADER(src/config.h)
 
+CFLAGS="$CFLAGS -Wall"
+
 dnl Check for programs
 AC_PROG_CC
 AC_PROG_INSTALL
 dnl AC_PROG_RANLIB
+AC_LIBTOOL_WIN32_DLL
 AM_PROG_LIBTOOL
 AC_PROG_MAKE_SET
 
@@ -38,16 +41,40 @@ AC_CHECK_LIB(pthread, pthread_create)
 
 dnl Check for header files
 AC_HEADER_STDC
-AC_CHECK_HEADERS(string.h stdlib.h stdio.h math.h errno.h stdarg.h unistd.h sys/mman.h sys/types.h sys/time.h sys/stat.h fcntl.h sys/socket.h netinet/in.h netinet/tcp.h arpa/inet.h limits.h pthread.h)
+AC_CHECK_HEADERS(string.h stdlib.h stdio.h math.h errno.h stdarg.h unistd.h sys/mman.h sys/types.h sys/time.h sys/stat.h fcntl.h sys/socket.h netinet/in.h netinet/tcp.h arpa/inet.h limits.h pthread.h signal.h windows.h)
 
 dnl Compiler and machine specs
-AC_C_INLINE 
+AC_C_INLINE
 AC_C_BIGENDIAN
 
+LIBFLUID_LIBS="-lm"
+
+dnl Machine specific checks and defines
+case "${host_os}" in
+darwin*)
+  AC_DEFINE(DARWIN, 1, [Define if building for Mac OS X Darwin])
+  ;;
+mingw*)
+  mingw32_support="yes"
+  CFLAGS="$CFLAGS -mms-bitfields"
+  AC_DEFINE(MINGW32, 1, [Define if using the MinGW32 environment])
+  LIBFLUID_LIBS="-ldsound -lwinmm"
+  LIBFLUID_CPPFLAGS="-DFLUIDSYNTH_DLL_EXPORTS"
+  LIBFLUID_LDFLAGS="-no-undefined"
+  FLUID_CPPFLAGS="-DFLUIDSYNTH_NOT_A_DLL"
+  ;;
+esac
+
+AC_SUBST(LIBFLUID_LIBS)
+AC_SUBST(LIBFLUID_CPPFLAGS)
+AC_SUBST(LIBFLUID_LDFLAGS)
+AC_SUBST(FLUID_CPPFLAGS)
+
+AM_CONDITIONAL(MINGW32_SUPPORT, test "$mingw32_support" == "yes")
 
 ENABLE_FLOAT_SAMPLES=yes
 AC_ARG_ENABLE(double,
-  [  --enable-double         double floating point for dsp [default=float]],
+  [  --enable-double         double floating point for dsp (default=float)],
   ENABLE_FLOAT_SAMPLES=no,
   ENABLE_FLOAT_SAMPLES=yes)
 if test "x$ENABLE_FLOAT_SAMPLES" = "xyes" ; then 
@@ -56,7 +83,7 @@ fi
 
 profiling_flag=no
 AC_ARG_ENABLE(profiling,
-  [  --enable-profiling      profile the dsp code [default=no]],
+  [  --enable-profiling      profile the dsp code (default=no)],
   profiling_flag=yes,
   profiling_flag=no)
 if test "x$profiling_flag" = "xyes" ; then 
@@ -65,7 +92,7 @@ fi
 
 longlong=no
 AC_ARG_ENABLE(longlong,
-  [  --enable-longlong       use long long integers, where appropriate [default=yes]],
+  [  --enable-longlong       use long long integers, where appropriate (default=yes)],
   longlong=yes,
   longlong=no)
 if test "x$longlong" = "xyes" ; then 
@@ -74,7 +101,7 @@ fi
 
 SSE=no
 AC_ARG_ENABLE(SSE,
-  [  --enable-SSE            Use the SSE instructions of Pentium3+     [default=no]],
+  [  --enable-SSE            Use the SSE instructions of Pentium3+ (default=no)],
   SSE=yes,
   SSE=no)
 if test "x$SSE" = "xyes" ; then 
@@ -83,7 +110,7 @@ fi
 
 ENABLE_LADSPA=no
 AC_ARG_ENABLE(ladspa,
-  [  --enable-ladspa         Include LADSPA effect unit [default=no]],
+  [  --enable-ladspa         Include LADSPA effect unit (default=no)],
   ENABLE_LADSPA=yes,
   ENABLE_LADSPA=no)
 if test "x$ENABLE_LADSPA" = "xyes" ; then 
@@ -96,7 +123,7 @@ fi
 
 ENABLE_FUNCTIONCHECK=no
 AC_ARG_ENABLE(functioncheck,
-  [  --enable-functioncheck  enable profiling using FunctionCheck. Turns on debugging. [default=no]],
+  [  --enable-functioncheck  enable profiling using FunctionCheck. Turns on debugging. (default=no)],
   ENABLE_FUNCTIONCHECK=yes,
   ENABLE_FUNCTIONCHECK=no)
 
@@ -117,33 +144,31 @@ else
 fi
 
 AC_ARG_ENABLE(debug,
-  [  --enable-debug          enable debugging [default=no]],
+  [  --enable-debug          enable debugging (default=no)],
   ENABLE_DEBUG=yes)
 
 
 case "$ENABLE_DEBUG" in
 no) 
-  CFLAGS="${FCCFLAGS} -O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused -Winline"
+  CFLAGS="${CFLAGS} ${FCCFLAGS} -O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused -Winline"
   AC_DEFINE(DEBUG, 0, [Define to activate debugging message])
   ;;
 
 yes)
   if test "${ENABLE_FUNCTIONCHECK}" = "yes"; then
-    CFLAGS="${FCCFLAGS} -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused"
+    CFLAGS="${CFLAGS} ${FCCFLAGS} -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused"
   else
-    CFLAGS="${FCCFLAGS} -g -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused"
+    CFLAGS="${CFLAGS} ${FCCFLAGS} -g -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused"
   fi 
   AC_DEFINE(DEBUG, 1, [Define to activate debugging message]) 
   ;;
 
 *)
-  CFLAGS="${FCCFLAGS} -O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused -Winline"
+  CFLAGS="${CFLAGS} ${FCCFLAGS} -O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused -Winline"
   AC_DEFINE(DEBUG, 0, [Define to activate debugging message])
   ;;
 
 esac
-
-
 
 
 dnl 
@@ -173,63 +198,59 @@ AC_MIDISHARE
 
 
 dnl - Check support for JACK
+AC_ARG_ENABLE(jack-support,
+  [  --disable-jack-support  disable JACK support (default=auto)],
+  [enable_jack=$enableval], enable_jack="yes")
 
-dnl PKG_CHECK_MODULES(JACK, jack, HAVE_JACK=true, HAVE_JACK=false)
-dnl 
-dnl AC_SUBST(JACK_CFLAGS)
-dnl AC_SUBST(JACK_LIBS)
+if test "x$enable_jack" != "xno"; then
+  PKG_CHECK_MODULES(JACK, jack, JACK_SUPPORT=1, JACK_SUPPORT=0)
+else
+  JACK_SUPPORT=0
+fi
 
-
-dnl - Check support for JACK
-AC_JACK
-
+if test "$JACK_SUPPORT" = "1"; then
+  AC_DEFINE(JACK_SUPPORT, 1, [Define to enable JACK driver])
+fi
+AM_CONDITIONAL(JACK_SUPPORT, test "$JACK_SUPPORT" = "1")
+AC_SUBST(JACK_CFLAGS)
+AC_SUBST(JACK_LIBS)
 
 
 dnl
 dnl - Check support for CoreAudio
 dnl
-fluid_enable_coreaudio="no"
+AC_CHECK_HEADER(CoreAudio/AudioHardware.h, COREAUDIO_FOUND="yes",
+                COREAUDIO_FOUND="no")
 AC_ARG_ENABLE(coreaudio,
-[  --enable-coreaudio        enable CoreAudio support],[
-  case "$enableval" in
-    "yes")
-      ;;
-    "no")
-      fluid_enable_coreaudio="no"
-      ;;
-    *)
-      AC_MSG_ERROR([must use --enable-coreaudio(=yes/no) or --disable-coreaudio])
-      ;;
-  esac
-])
+  [  --disable-coreaudio     disable CoreAudio support (default=auto)],
+  enable_coreaudio=$enableval, enable_coreaudio="yes")
 
-COREAUDIO_SUPPORT=0 
-if test "$fluid_enable_coreaudio" = "yes"; then
-  AC_CHECK_HEADER(AudioHardware.h, COREAUDIO_FOUND="yes", COREAUDIO_FOUND="no")
-  if test "$COREAUDIO_FOUND" = "yes"; then
-     AC_DEFINE(COREAUDIO_SUPPORT, 1, [whether or not we are supporting CoreAudio])
-     COREAUDIO_SUPPORT=1 
-  fi
-else
-  COREAUDIO_FOUND="no"
+COREAUDIO_SUPPORT=0
+if test "$enable_coreaudio" = "yes" -a "$COREAUDIO_FOUND" = "yes"; then
+  AC_DEFINE(COREAUDIO_SUPPORT, 1, [whether or not we are supporting CoreAudio])
+  COREAUDIO_SUPPORT=1
+  COREAUDIO_LIBS="-Wl,-framework,CoreAudio"
 fi
 
+AM_CONDITIONAL(COREAUDIO_SUPPORT, test "$COREAUDIO_SUPPORT" = "1")
+AC_SUBST(COREAUDIO_LIBS)
 
 dnl
-dnl The following scripts checks for readline and ncurses support.
+dnl Check for readline support (Josh Green 2003-06-10)
+dnl
+AC_ARG_WITH(readline,
+  [  --without-readline      disable readline lib line editing (default=auto)],
+  with_readline=$withval, with_readline="yes")
+
+if test "$with_readline" != "no"; then
+  AM_PATH_READLINE(FOUND_READLINE=1, FOUND_READLINE=0)
+fi
+
+dnl
+dnl The following script checks for ncurses support.
 dnl I copied and adapted it from DataDisplayDebugger's (DDD)
 dnl configure.in, written by Andreas Zeller <zeller@gnu.org>.
 dnl
-
-WITH_READLINE=yes
-have_termcap=false
-
-AC_ARG_WITH(readline,
-[  --with-readline         Use the readline library for line editing [default=yes]],[
-  if test "$withval" = "no"; then
-    WITH_READLINE=no
-  fi
-])
 
 dnl Look for the tgetent() function - either in libtermcap, libcurses
 dnl
@@ -239,19 +260,20 @@ dnl
 dnl On Linux ELF systems, `-lncurses' is preferred to `-ltermcap'.
 dnl Reported by jdassen@wi.leidenuniv.nl (J.H.M. Dassen)
 dnl
-if test "x${WITH_READLINE}" = "xyes"; then
+WITH_READLINE=0
+have_termcap=false
+if test "${FOUND_READLINE}" = "1"; then
   _termlib="mytinfo ncurses curses termcap terminfo termlib"
   for termlib in ${_termlib}; do
-     AC_CHECK_LIB(${termlib}, tgetent, [LIBREADLINE="-l${termlib}"; have_termcap=true; break])
+    AC_CHECK_LIB(${termlib}, tgetent,
+      [READLINE_LIBS="$READLINE_LIBS -l${termlib}"; have_termcap=true; break])
   done
 fi
-AC_SUBST(LIBREADLINE)
 
 if test "x${have_termcap}" = "xtrue"; then
-  LIBREADLINE="-lreadline $LIBREADLINE"; 
   AC_DEFINE(WITH_READLINE, 1, [Define to use the readline library for line editing])
+  WITH_READLINE=1
 fi
-
 
 dnl
 dnl ladcca stuff
@@ -288,8 +310,21 @@ AM_CONDITIONAL(LADCCA, test "$LADCCA_FOUND" = "yes")
 
 
 
-AC_OUTPUT(Makefile src/Makefile doc/Makefile include/Makefile include/fluidsynth/Makefile include/fluidsynth/version.h fluidsynth.pc)
-
+AC_OUTPUT([
+	Makefile
+	src/Makefile
+	doc/Makefile
+	include/Makefile
+	include/fluidsynth/Makefile
+	include/fluidsynth/version.h
+	fluidsynth.pc
+	fluidsynth.spec
+	macbuild/Makefile
+	sf2/Makefile
+	winbuild/Makefile
+	winbuild/fluidsynth/Makefile
+	winbuild/fluidsynth_dll/Makefile
+	winbuild/fluidsynth_lib/Makefile])
 
 echo
 echo "**************************************************************"
@@ -331,7 +366,7 @@ dnl else
 dnl   echo "Sound file:            no"
 dnl fi
 
-if test "x${WITH_READLINE}" = "xyes"; then
+if test "$WITH_READLINE" = "1"; then
   echo "Readline:              yes"
 else
   echo "Readline:              no"
@@ -366,8 +401,6 @@ if test "${ENABLE_LADSPA}" = "yes"; then
 else
   echo "LADSPA support:        no"
 fi
-
-
 
 if test "${longlong}" = "yes"; then
   echo "use long long:         yes"
