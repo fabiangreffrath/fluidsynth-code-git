@@ -27,23 +27,28 @@
  *
  */
  
-/************************************************************************
- *
- *  versions:
- *    (6): introduced message 'info'
- *    (5): fixed bogus path translation at file loading
- * 
- */
-#define VERSION "04/2004 (6)"
-
 #include "ftmax.h"
 #include "fluidsynth.h"
 #include "fluid_synth.h"
 #include "fluid_sfont.h"
 #include "fluid_chan.h"
 
-/* these functions were added after the v1.0 API freeze. They are not in synth.h, yet */
-extern int fluid_synth_program_select2(fluid_synth_t* synth, int chan, char* sfont_name, unsigned int bank_num, unsigned int preset_num);
+
+/************************************************************************
+ *
+ * These functions were added after the v1.0 API freeze. They are not
+ * in synth.h, yet.
+ *
+ ************************************************************************/
+
+int fluid_synth_program_select2(fluid_synth_t* synth, 
+				int chan, 
+				char* sfont_name, 
+				unsigned int bank_num, 
+				unsigned int preset_num);
+
+
+#define VERSION "02/2004 (3)"
 
 typedef struct
 {
@@ -51,8 +56,6 @@ typedef struct
   
   fluid_synth_t *synth;
 	fluid_settings_t *settings;
-	int reverb;
-	int chorus;
 	int mute;
 	void *outlet;
 } fluidmax_t;
@@ -61,15 +64,6 @@ static t_messlist *fluidmax_class;
 
 static ftmax_symbol_t sym_on = NULL;
 static ftmax_symbol_t sym_off = NULL;
-static ftmax_symbol_t sym_gain = NULL;
-static ftmax_symbol_t sym_channels = NULL;
-static ftmax_symbol_t sym_channel = NULL;
-static ftmax_symbol_t sym_soundfonts = NULL;
-static ftmax_symbol_t sym_soundfont = NULL;
-static ftmax_symbol_t sym_presets = NULL;
-static ftmax_symbol_t sym_preset = NULL;
-static ftmax_symbol_t sym_reverb = NULL;
-static ftmax_symbol_t sym_chorus = NULL;
 
 /***************************************************************
  *
@@ -111,79 +105,6 @@ fluidmax_dsp(fluidmax_t *self, t_signal **sp, short *count)
  *  load utlilities
  *
  */
-static char *
-fluidmax_translate_fullpath(char *maxpath, char *fullpath)
-{
-	int i;
-
-  strcpy(fullpath, "/Volumes/");
-  
-	for(i=0; maxpath[i] != ':'; i++)
-	  fullpath[i + 9] = maxpath[i];
-	  
-	/* skip ':' */
-	i++;
-	  
-  strcpy(fullpath + i + 8, maxpath + i);
-	
-	return fullpath;
-}
-  	
-static ftmax_symbol_t
-fluidmax_get_stripped_name(const char *fullpath)
-{
-  char stripped[1024];
-	int i;
-  
-	for(i=strlen(fullpath)-1; i>=0; i--)
-	{
-	  if(fullpath[i] == '/')
-      break;
-  }
-  
-  if(i != 0)
-    i++;	  
-	
-	strcpy(stripped, fullpath + i);
-	
-	for(i=0; stripped[i] != '\0'; i++)
-  {
-    if((stripped[i] == '.') && 
-       (stripped[i + 1] == 's' || stripped[i + 1] == 'S') && 
-       (stripped[i + 2] == 'f' || stripped[i + 2] == 'F') && 
-       (stripped[i + 3] == '2'))
-    {
-      stripped[i] = '\0';
-      break;
-    }
-  }
-	
-	return ftmax_new_symbol(stripped);
-}
-  	
-static ftmax_symbol_t
-fluidmax_sfont_get_name(fluid_sfont_t *sfont)
-{
-  return fluidmax_get_stripped_name(fluid_sfont_get_name(sfont));
-}
-  	
-static fluid_sfont_t *
-fluidmax_sfont_get_by_name(fluidmax_t *self, ftmax_symbol_t name)
-{
-  int n = fluid_synth_sfcount(self->synth);
-  int i;
-  
-  for(i=0; i<n; i++)
-  {
-    fluid_sfont_t *sfont = fluid_synth_get_sfont(self->synth, i);
-
-    if(fluidmax_sfont_get_name(sfont) == name)
-      return sfont;
-  }
-
-	return NULL;
-}
-
 static void 
 fluidmax_do_load(t_object *o, Symbol *s, short ac, Atom *at)
 {
@@ -191,39 +112,47 @@ fluidmax_do_load(t_object *o, Symbol *s, short ac, Atom *at)
   
 	if(ac > 0 && ftmax_is_symbol(at))	
 	{
-		const char *filename = ftmax_symbol_name(ftmax_get_symbol(at));
-		ftmax_symbol_t name = fluidmax_get_stripped_name(filename);
-		fluid_sfont_t *sf = fluidmax_sfont_get_by_name(self, name);
+		const char* filename = ftmax_symbol_name(ftmax_get_symbol(at));
 		
-		if(sf == NULL)
-		{
-		  int id = fluid_synth_sfload(self->synth, filename, 0);
-		
-    	if(id >= 0)
-    	{
-    		post("fluidsynth~: loaded soundfont '%s'", ftmax_symbol_name(name));
+  	if(fluid_synth_sfload(self->synth, filename, 0) >= 0)
+  	{
+  		post("fluidsynth~: loaded soundfont: %s", filename);
 
-    	  fluid_synth_program_reset(self->synth);
-    	  
-    	  outlet_bang(self->outlet);
-      }
-      else
-    		error("fluidsynth~: cannot load soundfont from file '%s'", filename);
+  	  fluid_synth_program_reset(self->synth);
+  	  
+  	  outlet_bang(self->outlet);
     }
     else
-    {
-		  error("soundfont named '%s' is already loaded", ftmax_symbol_name(name));
-		  return;
-		}
+  		error("fluidsynth~: cannot load soundfont from file: %s", filename);
   }
 }
 
+static char *
+fluidmax_translate_fullpath(char *fullpath)
+{
+	char last = '/';
+	int i;
+  
+	for(i=0; fullpath[i] != '\0'; i++)
+	{
+	  char c = fullpath[i];
+	  
+	  fullpath[i] = last;
+	  
+	  if(c == ':')
+	    break;
+	  
+	  last = c;
+	}
+	
+	return fullpath;
+}
+  	
 static void
 fluidmax_load_with_dialog(t_object *o, t_symbol *s, short argc, t_atom *argv)
 {
 	char filename[256];
-	char maxpath[1024];
-	char fullpath[1024];
+	char fullname[1024];
   long type;
 	short path;
 	
@@ -232,11 +161,11 @@ fluidmax_load_with_dialog(t_object *o, t_symbol *s, short argc, t_atom *argv)
 	if(open_dialog(filename, &path, &type, 0, 0))
 		return;
 		
-	if(path_topotentialname(path, filename, maxpath, 0) == 0)
+	if(path_topotentialname(path, filename, fullname, 0) == 0)
 	{
     ftmax_atom_t a;
     
-  	ftmax_set_symbol(&a, ftmax_new_symbol(fluidmax_translate_fullpath(maxpath, fullpath)));
+  	ftmax_set_symbol(&a, ftmax_new_symbol(fluidmax_translate_fullpath(fullname)));
     fluidmax_do_load(o, NULL, 1, &a);
   }
 }	
@@ -261,23 +190,22 @@ fluidmax_load(t_object *o, Symbol *s, short ac, Atom *at)
 	    char *string = (char *)ftmax_symbol_name(name);
 	    
 	    if(string[0] == '/')
-    	  defer(o, (method)fluidmax_do_load, NULL, ac, at);
+        fluidmax_do_load(o, NULL, ac, at); 
       else
 	    {
-      	char maxpath[1024];
-      	char fullpath[1024];
+      	char fullname[1024];
 	      short path;
       	long type;
         ftmax_atom_t a;
         
-        if(locatefile_extended(string, &path, &type, 0, 0) || path_topotentialname(path, string, maxpath, 0) != 0)
+        if(locatefile_extended(string, &path, &type, 0, 0) || path_topotentialname(path, string, fullname, 0) != 0)
       	{
-      	  error("fluidsynth~: cannot find file '%s'", string);
+      	  error("fluidmax~: cannot find file '%s'", string);
       	  return;
       	}
       	
-	      ftmax_set_symbol(&a, ftmax_new_symbol(fluidmax_translate_fullpath(maxpath, fullpath)));
-    	  defer(o, (method)fluidmax_do_load, NULL, 1, &a);
+	      ftmax_set_symbol(&a, ftmax_new_symbol(fluidmax_translate_fullpath(fullname)));
+        fluidmax_do_load(o, NULL, 1, &a); 
 	    }
     }
   }
@@ -297,88 +225,16 @@ fluidmax_unload(t_object *o, Symbol *s, short ac, Atom *at)
       
       if(sf != NULL)
       {  
-        ftmax_symbol_t name = fluidmax_sfont_get_name(sf);
+        char *name = fluid_sfont_get_name(sf);
         
     		if(fluid_synth_sfunload(self->synth, id, 0) >= 0)
     		{
-    			post("fluidsynth~: unloaded soundfont '%s' (%d)", ftmax_symbol_name(name), id);
+    			post("fluidsynth~: unloaded soundfont %d: %s", id, name);
     			return;
     	  }
       }
         	  
   	  error("fluidsynth~: cannot unload soundfont %d", id);
-  	}
-    else if (ftmax_is_symbol(at))
-    {
-      ftmax_symbol_t sym = ftmax_get_symbol(at);
-      
-      if(sym == ftmax_new_symbol("all"))
-      {
-        fluid_sfont_t *sf = fluid_synth_get_sfont(self->synth, 0);
-        int i;
-        
-        fluid_synth_system_reset(self->synth);
-
-        while(sf != NULL)
-        {
-          ftmax_symbol_t name = fluidmax_sfont_get_name(sf);
-          unsigned int id = fluid_sfont_get_id(sf);
-        
-      		if(fluid_synth_sfunload(self->synth, id, 0) >= 0)
-      			post("fluidsynth~: unloaded soundfont '%s' (%d)", ftmax_symbol_name(name), id);
-      	  else
-        	  error("fluidsynth~: cannot unload soundfont '%s' (%d)", ftmax_symbol_name(name), id);
-        
-          sf = fluid_synth_get_sfont(self->synth, 0);
-        }
-      }
-      else
-      {
-        fluid_sfont_t *sf = fluidmax_sfont_get_by_name(self, sym);
-        
-        if(sf != NULL)
-        {
-          unsigned int id = fluid_sfont_get_id(sf);
-          
-      		if(fluid_synth_sfunload(self->synth, id, 0) >= 0)
-      		{
-      			post("fluidsynth~: unloaded soundfont '%s' (%d)", ftmax_symbol_name(sym), id);
-      			return;
-      	  }
-      	}
-      	
-    	  error("fluidsynth~: cannot unload soundfont '%s'", ftmax_symbol_name(sym));
-      }
-    }
-  }
-}
-
-static void 
-fluidmax_reload(t_object *o, Symbol *s, short ac, Atom *at)
-{
-  fluidmax_t *self = (fluidmax_t *)o;
-  
-	if(ac > 0)
-	{
-	  int id;
-	
-  	if(ftmax_is_number(at))	
-  	{
-  		int id = ftmax_get_number_int(at);
-      fluid_sfont_t *sf = fluid_synth_get_sfont_by_id(self->synth, id);
-  		
-  		if(sf != NULL)
-  		{
-      	ftmax_symbol_t name = fluidmax_sfont_get_name(sf);
-      
-  		  if (fluid_synth_sfreload(self->synth, id) >= 0)
-  		  {
-  			  post("fluidsynth~: reloaded soundfont '%s' (%d)", id);
-  			  return;
-  			}
-
-  			error("fluidsynth~: cannot reload soundfont %d", id);
-    	}
   	}
     else if (ftmax_is_symbol(at))
     {
@@ -394,35 +250,30 @@ fluidmax_reload(t_object *o, Symbol *s, short ac, Atom *at)
         for(i=0; i<n; i++)
         {
           fluid_sfont_t *sf = fluid_synth_get_sfont(self->synth, i);
-          ftmax_symbol_t name = fluidmax_sfont_get_name(sf);
+          char *name = fluid_sfont_get_name(sf);
           unsigned int id = fluid_sfont_get_id(sf);
           
-        
-  		  if (fluid_synth_sfreload(self->synth, id) >= 0)
-      			post("fluidsynth~: reloaded soundfont '%s' (%d)", ftmax_symbol_name(name), id);
-      	  else
-        	  error("fluidsynth~: cannot reload soundfont '%s' (%d)", ftmax_symbol_name(name), id);
+    			post("fluidsynth~: unloaded soundfont %d", id);
         }
-      }
-      else
-      {
-        fluid_sfont_t *sf = fluidmax_sfont_get_by_name(self, sym);
-        
-        if(sf != NULL)
-        {
-          unsigned int id = fluid_sfont_get_id(sf);
-          
-      		if(fluid_synth_sfreload(self->synth, id) >= 0)
-      		{
-      			post("fluidsynth~: reloaded soundfont '%s' (%d)", ftmax_symbol_name(sym), id);
-      			return;
-      	  }
-      	}
-      	
-    	  error("fluidsynth~: cannot reload soundfont '%s'", ftmax_symbol_name(sym));
       }
     }
   }
+}
+
+static void 
+fluidmax_reload(t_object *o, Symbol *s, short ac, Atom *at)
+{
+  fluidmax_t *self = (fluidmax_t *)o;
+  
+	if(ac > 0 && ftmax_is_number(at))	
+	{
+		int id = ftmax_get_number_int(at);
+		
+		if (fluid_synth_sfreload(self->synth, id) >= 0)
+			post("fluidsynth~: reloaded soundfont %d", id);
+	  else
+			error("fluidsynth~: cannot reload soundfont %d", id);
+	}
 }
 
 static void 
@@ -627,35 +478,67 @@ fluidmax_select(t_object *o, Symbol *s, short ac, Atom *at)
   unsigned int preset = 0;  
   int channel = 1;
   
-  switch(ac)
+  if (ac == 0) 
   {
-    default:
-    case 4:
-      if(ftmax_is_number(at + 3))
-        channel = ftmax_get_number_int(at + 3);
+    return; // Someone is wasting our time
+  }
+  
+  if(ftmax_is_number(at))
+  {
+    switch(ac)
+    {
+      default:
+      case 4:
+        if(ftmax_is_number(at + 3))
+          channel = ftmax_get_number_int(at + 3);
 
-      if(channel < 1)
-        channel = 1;
-      else if(channel > fluid_synth_count_midi_channels(self->synth))
-        channel = fluid_synth_count_midi_channels(self->synth);
-        
-    case 3:
-      if(ftmax_is_number(at + 2))
-        preset = ftmax_get_number_int(at + 2);
-        
-    case 2:
-      if(ftmax_is_number(at + 1))
-        bank = ftmax_get_number_int(at + 1);
-        
-    case 1:
-      if(ftmax_is_number(at))
+        if(channel < 1)
+          channel = 1;
+        else if(channel > fluid_synth_count_midi_channels(self->synth))
+          channel = fluid_synth_count_midi_channels(self->synth);
+          
+      case 3:
+        if(ftmax_is_number(at + 2))
+          preset = ftmax_get_number_int(at + 2);
+      case 2:
+        if(ftmax_is_number(at + 1))
+          bank = ftmax_get_number_int(at + 1);
+      case 1:
     		fluid_synth_program_select(self->synth, channel - 1, ftmax_get_number_int(at), bank, preset);
-      else if(ftmax_is_symbol(at))
-    		fluid_synth_program_select2(self->synth, channel - 1, ftmax_symbol_name(ftmax_get_symbol(at)), bank, preset);
-    		
-		case 0:
-		  break;
-	}
+  		case 0:
+  		  break;
+    }
+  } else if(ftmax_is_symbol(at)) {
+
+	ftmax_symbol_t tmp = ftmax_get_symbol(at);
+	char *name = (char *)ftmax_symbol_name(tmp);
+  
+    // FIXME: this is silly code duplication
+    switch(ac)
+    {
+      default:
+      case 4:
+        if(ftmax_is_number(at + 3))
+          channel = ftmax_get_number_int(at + 3);
+
+        if(channel < 1)
+          channel = 1;
+        else if(channel > fluid_synth_count_midi_channels(self->synth))
+          channel = fluid_synth_count_midi_channels(self->synth);
+          
+      case 3:
+        if(ftmax_is_number(at + 2))
+          preset = ftmax_get_number_int(at + 2);
+      case 2:
+        if(ftmax_is_number(at + 1))
+          bank = ftmax_get_number_int(at + 1);
+      case 1:
+    		fluid_synth_program_select2(self->synth, channel - 1, name, bank, preset);
+  		case 0:
+  		  break;
+    }
+  
+  }
 }
 
 static void 
@@ -667,7 +550,6 @@ fluidmax_reverb(t_object *o, Symbol *s, short ac, Atom *at)
   {
     fluid_synth_set_reverb_on(self->synth, 1);
     fluid_revmodel_reset(self->synth->reverb);
-    self->reverb = 1;
   }
   else if(ftmax_is_number(at))
   {
@@ -676,7 +558,6 @@ fluidmax_reverb(t_object *o, Symbol *s, short ac, Atom *at)
     double width = fluid_synth_get_reverb_width(self->synth);
 
     fluid_synth_set_reverb_on(self->synth, 1);
-    self->reverb = 1;
     
     switch(ac)
     {
@@ -701,15 +582,9 @@ fluidmax_reverb(t_object *o, Symbol *s, short ac, Atom *at)
 	  ftmax_symbol_t sym = ftmax_get_symbol(at);
 	  
 	  if(sym == sym_on)
-	  {
       fluid_synth_set_reverb_on(self->synth, 1);
-      self->reverb = 1;
-    }
     else if(sym == sym_off)
-    {
       fluid_synth_set_reverb_on(self->synth, 0);
-      self->reverb = 0;
-    }
   }
 }
 
@@ -722,7 +597,6 @@ fluidmax_chorus(t_object *o, Symbol *s, short ac, Atom *at)
   {
     fluid_synth_set_chorus_on(self->synth, 1);
     fluid_chorus_reset(self->synth->chorus);
-    self->chorus = 1;
   }
   else if(ftmax_is_number(at))
   {
@@ -732,8 +606,7 @@ fluidmax_chorus(t_object *o, Symbol *s, short ac, Atom *at)
     int nr = fluid_synth_get_chorus_nr(self->synth);
 
     fluid_synth_set_chorus_on(self->synth, 1);
-    self->chorus = 1;
-
+    
     switch(ac)
     {
       default:
@@ -760,15 +633,9 @@ fluidmax_chorus(t_object *o, Symbol *s, short ac, Atom *at)
 	  ftmax_symbol_t sym = ftmax_get_symbol(at);
 	  
 	  if(sym == sym_on)
-	  {
       fluid_synth_set_chorus_on(self->synth, 1);
-      self->chorus = 1;
-    }
     else if(sym == sym_off)
-    {
       fluid_synth_set_chorus_on(self->synth, 0);
-      self->chorus = 0;
-    }
   }
 }
 
@@ -865,38 +732,32 @@ fluidmax_print(t_object *o, Symbol *s, short ac, Atom *at)
     {
       ftmax_symbol_t sym = ftmax_get_symbol(at);
       
-      if(sym == sym_gain)
+      if(sym == ftmax_new_symbol("gain"))
       {
         double gain = fluid_synth_get_gain(self->synth);
 
         post("gain: %g", gain);
       }
-      else if(sym == sym_channels)
+      else if(sym == ftmax_new_symbol("channels"))
       {
         int n = fluid_synth_count_midi_channels(self->synth);
         int i;
         
-        post("fluidsynth~ MIDI channels:");
+        post("fluidsynth~ channels:");
         
         for(i=0; i<n; i++)
         {
-          fluid_preset_t *preset = fluid_synth_get_channel_preset(self->synth, i);
-          char *preset_str = fluid_preset_get_name(preset);
-          ftmax_symbol_t preset_name = ftmax_new_symbol(preset_str);
-          unsigned int sf_id;
-          unsigned int bank_num;
-          unsigned int preset_num;
-          fluid_sfont_t *sf;
+          unsigned int sfont;
+          unsigned int bank;
+          unsigned int preset;
           
-          fluid_synth_get_program(self->synth, i, &sf_id, &bank_num, &preset_num);
-          sf = fluid_synth_get_sfont_by_id(self->synth, sf_id);
+          fluid_synth_get_program(self->synth, i, &sfont, &bank, &preset);
+          post("  %d: font %d, bank %d, preset %d", i + 1, sfont, bank, preset);
           
-          post("  channel %d: soundfont '%s', bank %d, preset %d: '%s'", 
-            i + 1, ftmax_symbol_name(fluidmax_sfont_get_name(sf)), bank_num, preset_num, ftmax_symbol_name(preset_name));
-          
+          /*fluid_preset_t *fluid_synth_get_channel_preset(fluid_synth_t *synth, int chan);*/
         }
       }
-      else if(sym == sym_soundfonts)
+      else if(sym == ftmax_new_symbol("soundfonts"))
       {
         int n = fluid_synth_sfcount(self->synth);
         int i;
@@ -909,95 +770,13 @@ fluidmax_print(t_object *o, Symbol *s, short ac, Atom *at)
         for(i=0; i<n; i++)
         {
           fluid_sfont_t *sf = fluid_synth_get_sfont(self->synth, i);
-          ftmax_symbol_t name = fluidmax_sfont_get_name(sf);
+          char *name = fluid_sfont_get_name(sf);
           unsigned int id = fluid_sfont_get_id(sf);
           
-          post("  soundfont %d '%s' (%d)", i, ftmax_symbol_name(name), id);
+          post("  %d: %s", id, name);
+          
+          /*fluid_preset_t *preset = fluid_sfont_get_preset(sf, bank, preset);*/
         }
-      }
-      else if(sym == sym_presets)
-      {
-        int n = fluid_synth_sfcount(self->synth);
-        
-        if(n > 0)
-        {
-          if(ac > 1)
-          {
-            fluid_sfont_t *sf = NULL;
-            ftmax_symbol_t name;
-         
-            if(ftmax_is_symbol(at + 1))
-            {
-              name = ftmax_get_symbol(at + 1);
-              sf = fluidmax_sfont_get_by_name(self, name);
-            }
-            else if(ftmax_is_int(at + 1))
-            {
-              int id = ftmax_get_int(at + 1);
-              
-              sf = fluid_synth_get_sfont_by_id(self->synth, id);
-              name = fluidmax_sfont_get_name(sf);
-            }
-            
-            if(sf != NULL)
-            {
-              fluid_preset_t preset;
-              
-              fluid_sfont_iteration_start(sf);
-              
-              post("fluidsynth~ presets of soundfont '%s':", ftmax_symbol_name(name));
-              
-              while(fluid_sfont_iteration_next(sf, &preset) > 0)
-              {
-                char *preset_str = fluid_preset_get_name(&preset);
-                ftmax_symbol_t preset_name = ftmax_new_symbol(preset_str);
-                int bank_num = fluid_preset_get_banknum(&preset);
-                int preset_num = fluid_preset_get_num(&preset);
-                
-                post("  preset '%s': bank %d, program %d)", ftmax_symbol_name(preset_name), bank_num, preset_num);
-              }
-            }
-          }
-          else
-          {
-            int i;
-
-            post("fluidsynth~ presets:");
-            
-            for(i=0; i<128; i++)
-            {
-              int j;
-              
-              for(j=0; j<128; j++)
-              {
-                fluid_preset_t *preset = NULL;
-                fluid_sfont_t *sf = NULL;
-                int k;
-                
-                for(k=0; k<n; k++)
-                {
-                  sf = fluid_synth_get_sfont(self->synth, k);                  
-                  preset = fluid_sfont_get_preset(sf, i, j);
-                  
-                  if(preset != NULL)
-                    break;
-                }
-                
-                if(preset != NULL)
-                {
-                  ftmax_symbol_t sf_name = fluidmax_sfont_get_name(sf);
-                  char *preset_str = fluid_preset_get_name(preset);
-                  ftmax_symbol_t preset_name = ftmax_new_symbol(preset_str);
-                  
-                  post("  preset '%s': soundfont '%s', bank %d, program %d)", 
-                    ftmax_symbol_name(preset_name), ftmax_symbol_name(sf_name), i, j);
-                }
-              }
-            }
-          }
-        }
-        else
-          error("fluidsynth~: no soundfonts loaded");
       }
       else if(sym == ftmax_new_symbol("modulators"))
       {
@@ -1018,247 +797,33 @@ fluidmax_print(t_object *o, Symbol *s, short ac, Atom *at)
         for(i=0; i<n; i++)
           post("  %d: %f", i, fluid_synth_get_gen(self->synth, channel - 1, i));
       }
-      else if(sym == sym_reverb)
+      else if(sym == ftmax_new_symbol("reverb"))
       {
         double level = fluid_synth_get_reverb_level(self->synth);
         double room = fluid_synth_get_reverb_roomsize(self->synth);
         double damping = fluid_synth_get_reverb_damp(self->synth);
         double width = fluid_synth_get_reverb_width(self->synth);
         
-        if(self->reverb != 0)
-        {
-          post("fluidsynth~ current reverb parameters:");
-          post("  level: %f", level);
-          post("  room size: %f", room);
-          post("  damping: %f", damping);
-          post("  width: %f", width);
-        }
-        else
-          post("fluidsynth~ reverb off");        
+        post("fluidsynth~ current reverb parameters:");
+        post("  level: %f", level);
+        post("  room size: %f", room);
+        post("  damping: %f", damping);
+        post("  width: %f", width);
       }
-      else if(sym == sym_chorus)
+      else if(sym == ftmax_new_symbol("chorus"))
       {
-        if(self->chorus != 0)
-        {
-          double level = fluid_synth_get_chorus_level(self->synth);
-          double speed = fluid_synth_get_chorus_speed_Hz(self->synth);
-          double depth = fluid_synth_get_chorus_depth_ms(self->synth);
-          int type = fluid_synth_get_chorus_type(self->synth);
-          int nr = fluid_synth_get_chorus_nr(self->synth);
-          
-          post("fluidsynth~ current chorus parameters:");
-          post("  level: %f", level);
-          post("  speed: %f Hz", speed);
-          post("  depth: %f msec", depth);
-          post("  type: %d (%s)", type, type? "triangle": "sine");
-          post("  %d units", nr);
-        }
-        else
-          post("fluidsynth~ chorus off");
-      }
-    }
-  }
-}
-
-static void 
-fluidmax_info(t_object *o, Symbol *s, short ac, Atom *at)
-{
-  fluidmax_t *self = (fluidmax_t *)o;
-  
-  if(ac > 0)
-  {
-    if(ftmax_is_symbol(at))
-    {
-      ftmax_symbol_t sym = ftmax_get_symbol(at);
-      
-      if(sym == sym_gain)
-      {
-        ftmax_atom_t a;
-        double gain = fluid_synth_get_gain(self->synth);
-
-        ftmax_set_float(&a, gain);
-        outlet_anything(self->outlet, sym_channel, 1, &a);
-      }
-      else if(sym == sym_channels)
-      {
-        int n = fluid_synth_count_midi_channels(self->synth);
-        int i;
+        double level = fluid_synth_get_chorus_level(self->synth);
+        double speed = fluid_synth_get_chorus_speed_Hz(self->synth);
+        double depth = fluid_synth_get_chorus_depth_ms(self->synth);
+        int type = fluid_synth_get_chorus_type(self->synth);
+        int nr = fluid_synth_get_chorus_nr(self->synth);
         
-        for(i=0; i<n; i++)
-        {
-          fluid_preset_t *preset = fluid_synth_get_channel_preset(self->synth, i);
-          char *preset_str = fluid_preset_get_name(preset);
-          ftmax_symbol_t preset_name = ftmax_new_symbol(preset_str);
-          unsigned int sf_id, bank_num, preset_num;
-          fluid_sfont_t *sf;
-          ftmax_atom_t a[5];
-          
-          fluid_synth_get_program(self->synth, i, &sf_id, &bank_num, &preset_num);
-          sf = fluid_synth_get_sfont_by_id(self->synth, sf_id);
-
-          ftmax_set_int(a, i + 1);
-          ftmax_set_symbol(a + 1, fluidmax_sfont_get_name(sf));
-          ftmax_set_int(a + 2, bank_num);
-          ftmax_set_int(a + 3, preset_num);
-          ftmax_set_symbol(a + 4, preset_name);
-          outlet_anything(self->outlet, sym_channel, 5, a);          
-        }
-      }
-      else if(sym == sym_soundfonts)
-      {
-        int n = fluid_synth_sfcount(self->synth);
-        int i;
-        
-        for(i=0; i<n; i++)
-        {
-          fluid_sfont_t *sf = fluid_synth_get_sfont(self->synth, i);
-          ftmax_symbol_t name = fluidmax_sfont_get_name(sf);
-          unsigned int id = fluid_sfont_get_id(sf);
-          ftmax_atom_t a[2];
-          
-          ftmax_set_int(a, i);
-          ftmax_set_symbol(a + 1, fluidmax_sfont_get_name(sf));
-          outlet_anything(self->outlet, sym_soundfont, 2, a);
-        }
-      }
-      else if(sym == sym_presets)
-      {
-        int n = fluid_synth_sfcount(self->synth);
-        
-        if(n > 0)
-        {
-          if(ac > 1)
-          {
-            fluid_sfont_t *sf = NULL;
-            ftmax_symbol_t sf_name;
-         
-            if(ftmax_is_symbol(at + 1))
-            {
-              sf_name = ftmax_get_symbol(at + 1);
-              sf = fluidmax_sfont_get_by_name(self, sf_name);
-            }
-            else if(ftmax_is_int(at + 1))
-            {
-              int id = ftmax_get_int(at + 1);
-              
-              sf = fluid_synth_get_sfont_by_id(self->synth, id);
-              sf_name = fluidmax_sfont_get_name(sf);
-            }
-            
-            if(sf != NULL)
-            {
-              fluid_preset_t preset;
-              
-              fluid_sfont_iteration_start(sf);
-              
-              while(fluid_sfont_iteration_next(sf, &preset) > 0)
-              {
-                char *preset_str = fluid_preset_get_name(&preset);
-                ftmax_symbol_t preset_name = ftmax_new_symbol(preset_str);
-                int bank_num = fluid_preset_get_banknum(&preset);
-                int preset_num = fluid_preset_get_num(&preset);
-                ftmax_atom_t a[4];
-                
-                ftmax_set_symbol(a , preset_name);
-                ftmax_set_symbol(a + 1, sf_name);
-                ftmax_set_int(a + 2, bank_num);
-                ftmax_set_int(a + 3, preset_num);
-                outlet_anything(self->outlet, sym_preset, 4, a);
-              }
-            }
-          }
-          else
-          {
-            int i;
-
-            for(i=0; i<128; i++)
-            {
-              int j;
-              
-              for(j=0; j<128; j++)
-              {
-                fluid_preset_t *preset = NULL;
-                fluid_sfont_t *sf = NULL;
-                int k;
-                
-                for(k=0; k<n; k++)
-                {
-                  sf = fluid_synth_get_sfont(self->synth, k);                  
-                  preset = fluid_sfont_get_preset(sf, i, j);
-                  
-                  if(preset != NULL)
-                    break;
-                }
-                
-                if(preset != NULL)
-                {
-                  ftmax_symbol_t sf_name = fluidmax_sfont_get_name(sf);
-                  char *preset_str = fluid_preset_get_name(preset);
-                  ftmax_symbol_t preset_name = ftmax_new_symbol(preset_str);
-                  ftmax_atom_t a[4];
-                  
-                  ftmax_set_symbol(a , preset_name);
-                  ftmax_set_symbol(a + 1, sf_name);
-                  ftmax_set_int(a + 2, i);
-                  ftmax_set_int(a + 3, j);
-                  outlet_anything(self->outlet, sym_preset, 4, a);
-                }
-              }
-            }
-          }
-        }
-        else
-          error("fluidsynth~ info: no soundfonts loaded");
-      }
-      else if(sym == sym_reverb)
-      {
-        if(self->reverb != 0)
-        {
-          double level = fluid_synth_get_reverb_level(self->synth);
-          double room = fluid_synth_get_reverb_roomsize(self->synth);
-          double damping = fluid_synth_get_reverb_damp(self->synth);
-          double width = fluid_synth_get_reverb_width(self->synth);
-          ftmax_atom_t a[4];
-          
-          ftmax_set_float(a, level);
-          ftmax_set_float(a + 1, room);
-          ftmax_set_float(a + 2, damping);
-          ftmax_set_float(a + 3, width);
-          outlet_anything(self->outlet, sym_reverb, 4, a);          
-        }
-        else
-        {
-          ftmax_atom_t a;
-          
-          ftmax_set_symbol(&a, sym_off);
-          outlet_anything(self->outlet, sym_reverb, 1, &a);
-        }
-      }
-      else if(sym == sym_chorus)
-      {
-        if(self->chorus != 0)
-        {
-          double level = fluid_synth_get_chorus_level(self->synth);
-          double speed = fluid_synth_get_chorus_speed_Hz(self->synth);
-          double depth = fluid_synth_get_chorus_depth_ms(self->synth);
-          int type = fluid_synth_get_chorus_type(self->synth);
-          int nr = fluid_synth_get_chorus_nr(self->synth);
-          ftmax_atom_t a[5];
-          
-          ftmax_set_float(a, level);
-          ftmax_set_float(a + 1, speed);
-          ftmax_set_float(a + 2, depth);
-          ftmax_set_int(a + 3, type);
-          ftmax_set_int(a + 4, nr);
-          outlet_anything(self->outlet, sym_chorus, 5, a);
-        }
-        else
-        {
-          ftmax_atom_t a;
-          
-          ftmax_set_symbol(&a, sym_off);
-          outlet_anything(self->outlet, sym_chorus, 1, &a);
-        }
+        post("fluidsynth~ current chorus parameters:");
+        post("  level: %f", level);
+        post("  speed: %f Hz", speed);
+        post("  depth: %f msec", depth);
+        post("  type: %d (%s)", type, type? "triangle": "sine");
+        post("  %d units", nr);
       }
     }
   }
@@ -1276,7 +841,9 @@ fluidmax_new(Symbol *s, short ac, Atom *at)
   int polyphony = 256;
   int midi_channels = 16;
 
-  self->outlet = outlet_new(self, "anything");
+  		post("fluidsynth~: DEBUG VERSION [PH]");
+
+  self->outlet = outlet_new(self, "bang");
 
   dsp_setup((t_pxobject *)self, 0);
   outlet_new(self, "signal");
@@ -1284,8 +851,6 @@ fluidmax_new(Symbol *s, short ac, Atom *at)
 
   self->synth = NULL;
 	self->settings = new_fluid_settings();
-  self->reverb = 0;
-  self->chorus = 0;
   self->mute = 0;
 	
 	if(ac > 0 && ftmax_is_number(at))
@@ -1320,9 +885,6 @@ fluidmax_new(Symbol *s, short ac, Atom *at)
   	
   	if(self->synth != NULL)
     {
-      fluid_synth_set_reverb_on(self->synth, 0);
-      fluid_synth_set_chorus_on(self->synth, 0);      
-    
       if(ac > 0 && ftmax_is_symbol(at))
         fluidmax_load((t_object *)self, NULL, ac, at);
 
@@ -1365,7 +927,6 @@ main(void)
 	addmess((method)fluidmax_load, "load", A_GIMME, 0);
 	addmess((method)fluidmax_unload, "unload", A_GIMME, 0);
 	addmess((method)fluidmax_reload, "reload", A_GIMME, 0);
-  addmess((method)fluidmax_info, "info", A_GIMME, 0);
 	
 	addmess((method)fluidmax_panic, "panic", A_GIMME, 0);
 	addmess((method)fluidmax_reset, "reset", A_GIMME, 0);
@@ -1391,15 +952,6 @@ main(void)
 
   sym_on = ftmax_new_symbol("on");
   sym_off = ftmax_new_symbol("off");
-  sym_gain = ftmax_new_symbol("gain");
-  sym_channels = ftmax_new_symbol("channels");
-  sym_channel = ftmax_new_symbol("channel");
-  sym_soundfonts = ftmax_new_symbol("soundfonts");
-  sym_soundfont = ftmax_new_symbol("soundfont");
-  sym_presets = ftmax_new_symbol("presets");
-  sym_preset = ftmax_new_symbol("preset");
-  sym_reverb = ftmax_new_symbol("reverb");
-  sym_chorus = ftmax_new_symbol("chorus");
 	
   fluidmax_version(NULL);
 }
