@@ -42,6 +42,10 @@
 #include "config.h"
 #endif
 
+#ifdef HAVE_SIGNAL_H
+#include "signal.h"
+#endif
+
 #ifdef HAVE_LADCCA
 #include <pthread.h>
 #include <ladcca/ladcca.h>
@@ -85,7 +89,11 @@ extern char *optarg;
 extern int optind, opterr, optopt;
 #endif
 
-/* don't shoot me */
+
+/* is_number
+ *
+ * don't shoot me 
+ */
 int is_number(char *a)
 {
   for (; *a != 0; a++) {
@@ -96,7 +104,9 @@ int is_number(char *a)
   return 1;
 }
 
-/* Purpose:
+/* process_o_cmd_line_option
+ *
+ * Purpose:
  * Process a command line option -o setting=value, 
  * for example: -o synth.polyhony=16
  */
@@ -123,6 +133,20 @@ void process_o_cmd_line_option(fluid_settings_t* settings, char* optarg){
   };
 }
 
+
+#ifdef HAVE_SIGNAL_H
+/* 
+ * handle_signal
+ */
+void handle_signal(int sig_num)
+{
+}
+#endif
+
+
+/*
+ * main
+ */
 int main(int argc, char** argv) 
 {
   fluid_settings_t* settings;
@@ -144,7 +168,7 @@ int main(int argc, char** argv)
   int audio_groups = 0;
   int audio_channels = 0;
   int with_server = 0;
-  int dump=0;
+  int dump = 0;
   appname = argv[0];
 #ifdef HAVE_LADCCA
   cca_args_t * cca_args;
@@ -184,10 +208,6 @@ int main(int argc, char** argv)
       {"no-shell", 0, 0, 'i'},
       {"version", 0, 0, 'V'},
       {"option", 1, 0, 'o'},
-/*       {"midi-device", 1, 0, 'M'}, */
-/*       {"audio-device", 1, 0, 'A'}, */
-/*       {"pid-synth-name", 1, 0, 'p'}, */
-/*       {"synth-name", 1, 0, 's'}, */
       {0, 0, 0, 0}
     };
 
@@ -211,26 +231,14 @@ int main(int argc, char** argv)
     case 'a':
       fluid_settings_setstr(settings, "audio.driver", optarg);
       break;
-/*     case 'M': */
-/*       midi_device = optarg; */
-/*       break; */
-/*     case 'A': */
-/*       settings.adevice = optarg; */
-/*       break; */
-/*     case 's': */
-/*       midi_id = optarg; */
-/*       break; */
-/*     case 'p': */
-/*       midi_id = "pid"; */
-/*       break; */
     case 'j':
       fluid_settings_setint(settings, "audio.jack.autoconnect", 1);
       break;
     case 'z':
-      fluid_settings_setint(settings, "audio.period-size", atof(optarg));
+      fluid_settings_setint(settings, "audio.period-size", atoi(optarg));
       break;
     case 'c':
-      fluid_settings_setint(settings, "audio.periods", atof(optarg));
+      fluid_settings_setint(settings, "audio.periods", atoi(optarg));
       break;
     case 'g':
       fluid_settings_setnum(settings, "synth.gain", atof(optarg));
@@ -253,7 +261,7 @@ int main(int argc, char** argv)
       break;
     case 'd':
       fluid_settings_setstr(settings, "synth.dump", "yes");
-      dump=1;
+      dump = 1;
       break;
     case 'R':
       if ((optarg != NULL) && ((strcmp(optarg, "0") == 0) || (strcmp(optarg, "no") == 0))) {
@@ -421,17 +429,12 @@ int main(int argc, char** argv)
     
     flags = CCA_Config_Data_Set | CCA_Terminal;
 
-#ifdef JACK_SUPPORT    
-    fluid_settings_getstr (settings, "audio.driver", &str);
-    if (str && strcmp (str, "jack") == 0)
+    if (fluid_settings_str_equal(settings, "audio.driver", "jack")) {
       flags |= CCA_Use_Jack;
-#endif /* JACK_SUPPORT */
-
-#ifdef ALSA_SUPPORT
-    fluid_settings_getstr (settings, "midi.driver", &str);
-    if (str && strcmp (str, "alsa_seq") == 0)
+    }
+    if (fluid_settings_str_equal(settings, "midi.driver", "alsa_seq")) {
       flags |= CCA_Use_Alsa;
-#endif /* ALSA_SUPPORT */
+    }
     
     fluid_cca_client = cca_init (cca_args, "FluidSynth", flags, CCA_PROTOCOL (1,1));
     
@@ -478,7 +481,11 @@ int main(int argc, char** argv)
       }
     }
   }
-  
+
+#ifdef HAVE_SIGNAL_H
+/*   signal(SIGINT, handle_signal); */
+#endif
+
   /* start the synthesis thread */
   adriver = new_fluid_audio_driver(settings, synth);
   if (adriver == NULL) {
@@ -493,6 +500,7 @@ int main(int argc, char** argv)
     /* In dump mode, text output is generated for events going into and out of the router.
      * The example dump functions are put into the chain before and after the router..
      */
+
     router = new_fluid_midi_router(
       settings, 
       dump ? fluid_midi_dump_postrouter : fluid_synth_handle_midi_event, 
@@ -625,6 +633,9 @@ static fluid_cmd_handler_t* newclient(void* data, char* addr)
 }
 
 
+/*
+ * print_usage
+ */
 void 
 print_usage() 
 {
@@ -633,6 +644,9 @@ print_usage()
   exit(0);
 }
 
+/*
+ * print_welcome
+ */
 void 
 print_welcome() 
 {
@@ -646,6 +660,9 @@ print_welcome()
 
 }
 
+/*
+ * print_version
+ */
 void 
 print_version()
 {
@@ -653,6 +670,9 @@ print_version()
   exit(0);
 }
 
+/*
+ * print_help
+ */
 void 
 print_help() 
 {
@@ -677,14 +697,6 @@ print_help()
 	 "    Number of audio buffers\n\n");
   printf(" -r, --sample-rate\n"
 	 "    Set the sample rate\n\n");
-/*   printf(" -M, --midi-device=[device]\n" */
-/* 	 "    The name of the midi device to use\n\n"); */
-/*   printf(" -A, --audio-device=[device]\n" */
-/* 	 "    The audio device\n\n"); */
-/*   printf(" -s, --synth-name=[name]\n" */
-/* 	 "    A name to append to the alsa synth name (-p takes precedence)\n\n"); */
-/*   printf(" -p, --pid-synth-name\n" */
-/* 	 "    Append the pid to the alsa synth name\n\n"); */
   printf(" -R, --reverb\n"
 	 "    Turn the reverb on or off [0|1|yes|no, default = on]\n\n");
   printf(" -C, --chorus\n"
