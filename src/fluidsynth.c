@@ -670,8 +670,10 @@ print_help()
 	 "    Dump incoming and outgoing MIDI events to stdout\n");
   printf(" -f, --load-config\n"
 	 "    Load command configuration file (shell commands)\n");
+#ifdef LADSPA
   printf(" -G, --audio-groups\n"
 	 "    Defines the number of LADSPA audio nodes\n");
+#endif
   printf(" -g, --gain\n"
 	 "    Set the master gain [0 < gain < 10, default = 0.2]\n");
   printf(" -h, --help\n"
