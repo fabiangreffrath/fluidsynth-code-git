@@ -811,7 +811,7 @@ double fluid_utime(void)
   return (rdtsc() / fluid_cpu_frequency);
 }
 
-#if !defined(__i386__)
+#if !defined(__i386__) && !defined(__amd64__)
 
 double rdtsc(void)
 {
