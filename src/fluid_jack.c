@@ -199,33 +199,6 @@ new_fluid_jack_audio_driver(fluid_settings_t* settings, fluid_synth_t* synth)
 						       JackPortIsOutput, 0);
     }
 
-    dev->num_fx_ports = fluid_synth_count_effects_channels(synth);
-
-    dev->fx_ports = FLUID_ARRAY(jack_port_t*, 2 * dev->num_fx_ports);
-    if (dev->fx_ports == NULL) {
-      FLUID_LOG(FLUID_PANIC, "Out of memory");
-      goto error_recovery;
-    }
-
-    dev->fx_bufs = FLUID_ARRAY(float*, 2 * dev->num_fx_ports);
-    if (dev->fx_bufs == NULL) {
-      FLUID_LOG(FLUID_PANIC, "Out of memory");
-      goto error_recovery;
-    }
-
-    FLUID_MEMSET(dev->fx_ports, 0, 2 * dev->num_fx_ports * sizeof(jack_port_t*));
-
-    for (i = 0; i < dev->num_fx_ports; i++) {
-      sprintf(name, "fxl_%02d", i);
-      dev->fx_ports[2 * i] = jack_port_register(dev->client, name,
-						JACK_DEFAULT_AUDIO_TYPE,
-						JackPortIsOutput, 0);
-
-      sprintf(name, "fxr_%02d", i);
-      dev->fx_ports[2 * i + 1] = jack_port_register(dev->client, name,
-						    JACK_DEFAULT_AUDIO_TYPE,
-						    JackPortIsOutput, 0);
-    }
   }
 
   /* tell the JACK server that we are ready to roll */
@@ -501,7 +474,7 @@ fluid_jack_audio_driver_process(jack_nframes_t nframes, void *arg)
 {
   fluid_jack_audio_driver_t* dev = (fluid_jack_audio_driver_t*) arg;
 
-  if (dev->fx_ports == NULL) {
+  if (dev->num_output_ports == 2) {
     float *left;
     float *right;
 
@@ -518,16 +491,11 @@ fluid_jack_audio_driver_process(jack_nframes_t nframes, void *arg)
       dev->output_bufs[i] = (float*) jack_port_get_buffer(dev->output_ports[2*i], nframes);
       dev->output_bufs[k] = (float*) jack_port_get_buffer(dev->output_ports[2*i+1], nframes);
     }
-    for (i = 0, k = dev->num_fx_ports; i < dev->num_fx_ports; i++, k++) {
-      dev->fx_bufs[i] = (float*) jack_port_get_buffer(dev->fx_ports[2*i], nframes);
-      dev->fx_bufs[k] = (float*) jack_port_get_buffer(dev->fx_ports[2*i+1], nframes);
-    }
 
     fluid_synth_nwrite_float(dev->synth, nframes,
 			    dev->output_bufs,
 			    dev->output_bufs + dev->num_output_ports,
-			    dev->fx_bufs,
-			    dev->fx_bufs + dev->num_fx_ports);
+                      NULL, NULL);
   }
 
   return 0;

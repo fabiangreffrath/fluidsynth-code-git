@@ -673,6 +673,7 @@ int
 fluid_handle_reverbsetroomsize(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t room_size;
+  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setroomsize: too few arguments.\n");
     return -1;
@@ -686,7 +687,9 @@ fluid_handle_reverbsetroomsize(fluid_synth_t* synth, int ac, char** av, fluid_os
     fluid_ostream_printf(out, "rev_setroomsize: Room size too big!\n");
     return -1;
   }
-  fluid_revmodel_setroomsize(synth->reverb, room_size);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_revmodel_setroomsize(synth->reverb[i], room_size);
+  }
   return 0;
 }
 
@@ -697,6 +700,7 @@ int
 fluid_handle_reverbsetdamp(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t damp;
+  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setdamp: too few arguments.\n");
     return -1;
@@ -706,7 +710,9 @@ fluid_handle_reverbsetdamp(fluid_synth_t* synth, int ac, char** av, fluid_ostrea
     fluid_ostream_printf(out, "rev_setdamp: damp must be between 0 and 1!\n");
     return -1;
   }
-  fluid_revmodel_setdamp(synth->reverb, damp);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_revmodel_setdamp(synth->reverb[i], damp);
+  }
   return 0;
 }
 
@@ -717,6 +723,7 @@ int
 fluid_handle_reverbsetwidth(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t width;
+  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setwidth: too few arguments.\n");
     return -1;
@@ -726,7 +733,9 @@ fluid_handle_reverbsetwidth(fluid_synth_t* synth, int ac, char** av, fluid_ostre
     fluid_ostream_printf(out, "rev_setroomsize: Too wide! (0..100)\n");
     return 0;
   }
-  fluid_revmodel_setwidth(synth->reverb, width);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_revmodel_setwidth(synth->reverb[i], width);
+  }
   return 0;
 }
 
@@ -737,6 +746,7 @@ int
 fluid_handle_reverbsetlevel(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t level;
+  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setlevel: too few arguments.\n");
     return -1;
@@ -746,7 +756,9 @@ fluid_handle_reverbsetlevel(fluid_synth_t* synth, int ac, char** av, fluid_ostre
     fluid_ostream_printf(out, "rev_setlevel: Value too high! (Value of 10 =+20 dB)\n");
     return 0;
   }
-  fluid_revmodel_setlevel(synth->reverb, level);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_revmodel_setlevel(synth->reverb[i], level);
+  }
   return 0;
 }
 
@@ -780,13 +792,17 @@ int
 fluid_handle_chorusnr(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   int nr;
+  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_nr: too few arguments.\n");
     return -1;
   }
   nr = atoi(av[0]);
-  fluid_chorus_set_nr(synth->chorus, nr);
-  return fluid_chorus_update(synth->chorus);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_chorus_set_nr(synth->chorus[i], nr);
+    status |= fluid_chorus_update(synth->chorus[i]);
+  }
+  return status;
 }
 
 /* Purpose:
@@ -795,13 +811,17 @@ int
 fluid_handle_choruslevel(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t level;
+  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_level: too few arguments.\n");
     return -1;
   }
   level = atof(av[0]);
-  fluid_chorus_set_level(synth->chorus, level);
-  return fluid_chorus_update(synth->chorus);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_chorus_set_level(synth->chorus[i], level);
+    status |= fluid_chorus_update(synth->chorus[i]);
+  }
+  return status;
 
 }
 
@@ -811,13 +831,17 @@ int
 fluid_handle_chorusspeed(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t speed;
+  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_speed: too few arguments.\n");
     return -1;
   }
   speed = atof(av[0]);
-  fluid_chorus_set_speed_Hz(synth->chorus, speed);
-  return fluid_chorus_update(synth->chorus);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_chorus_set_speed_Hz(synth->chorus[i], speed);
+    status |= fluid_chorus_update(synth->chorus[i]);
+  }
+  return status;
 }
 
 /* Purpose:
@@ -826,13 +850,17 @@ int
 fluid_handle_chorusdepth(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t depth;
+  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_depth: too few arguments.\n");
     return -1;
   }
   depth = atof(av[0]);
-  fluid_chorus_set_depth_ms(synth->chorus, depth);
-  return fluid_chorus_update(synth->chorus);
+  for (i = 0; i < synth->nbuf; i++) {
+    fluid_chorus_set_depth_ms(synth->chorus[i], depth);
+    fluid_chorus_update(synth->chorus[i]);
+  }
+  return status;
 }
 
 int
