@@ -1692,7 +1692,23 @@ int fluid_synth_process(fluid_synth_t* synth, int len,
 		       int nin, float** in,
 		       int nout, float** out)
 {
-  return fluid_synth_write_float(synth, len, out[0], 0, 1, out[1], 0, 1);
+  if (nout==2) {
+    return fluid_synth_write_float(synth, len, out[0], 0, 1, out[1], 0, 1);
+  }
+  else {
+    float **left, **right;
+    int i;
+    left = FLUID_ARRAY(float*, nout/2);
+    right = FLUID_ARRAY(float*, nout/2);
+    for(i=0; i<nout/2; i++) {
+      left[i] = out[2*i];
+      right[i] = out[2*i+1];
+    }
+    fluid_synth_nwrite_float(synth, len, left, right, NULL, NULL);
+    FLUID_FREE(left);
+    FLUID_FREE(right);
+    return 0;
+  }
 }
 
 
