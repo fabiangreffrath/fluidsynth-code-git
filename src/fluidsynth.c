@@ -373,7 +373,7 @@ int main(int argc, char** argv)
       with_server = 1;
       break;
     case 'V':
-      printf("FluidSynth %s\n", VERSION);
+      printf("FluidSynth %s\n", FLUIDSYNTH_VERSION);
       exit (0);
       break;
     case 'v':
@@ -644,7 +644,7 @@ void
 print_welcome()
 {
   printf("FluidSynth version %s\n"
-	 "Copyright (C) 2000-2006 Peter Hanappe and others.\n"
+	 "Copyright (C) 2000-2009 Peter Hanappe and others.\n"
 	 "Distributed under the LGPL license.\n"
 	 "SoundFont(R) is a registered trademark of E-mu Systems, Inc.\n\n",
 	 FLUIDSYNTH_VERSION);
