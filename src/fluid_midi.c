@@ -1576,41 +1576,43 @@ int fluid_midi_event_length(unsigned char event){
  */
 int fluid_midi_send_event(fluid_synth_t* synth, fluid_player_t* player, fluid_midi_event_t* event)
 {
-	switch (event->type) {
-	case NOTE_ON:
-		if (fluid_synth_noteon(synth, event->channel, event->param1, event->param2) != FLUID_OK) {
-			return FLUID_FAILED;
-		}
-		break;
-	case NOTE_OFF:
-		if (fluid_synth_noteoff(synth, event->channel, event->param1) != FLUID_OK) {
-			return FLUID_FAILED;
-		}
-		break;
-	case CONTROL_CHANGE:
-		if (fluid_synth_cc(synth, event->channel, event->param1, event->param2) != FLUID_OK) {
-			return FLUID_FAILED;
-		}
-		break;
-	case MIDI_SET_TEMPO:
-		if (player != NULL) {
-			if (fluid_player_set_midi_tempo(player, event->param1) != FLUID_OK) {
-				return FLUID_FAILED;
-			}
-		}
-		break;
-	case PROGRAM_CHANGE:
-		if (fluid_synth_program_change(synth, event->channel, event->param1) != FLUID_OK) {
-			return FLUID_FAILED;
-		}
-		break;
-	case PITCH_BEND:
-		if (fluid_synth_pitch_bend(synth, event->channel, event->param1) != FLUID_OK) {
-			return FLUID_FAILED;
-		}
-		break;
-	default:
-		break;
-	}
-	return FLUID_OK;
+  int type = fluid_midi_event_get_type(event);
+  int chan = fluid_midi_event_get_channel(event);
+  
+  switch (type) {
+    case NOTE_ON:
+      return fluid_synth_noteon(synth, chan,
+        fluid_midi_event_get_key(event),
+        fluid_midi_event_get_velocity(event));
+    case NOTE_OFF:
+	return fluid_synth_noteoff(synth, chan, fluid_midi_event_get_key(event));
+    case CONTROL_CHANGE:
+	return fluid_synth_cc(synth, chan,
+        fluid_midi_event_get_control(event),
+        fluid_midi_event_get_value(event));
+    case MIDI_SET_TEMPO:
+      if (player != NULL) {
+        return fluid_player_set_midi_tempo(player, event->param1);
+      }
+      break;
+    case PROGRAM_CHANGE:
+      return fluid_synth_program_change(synth, chan, fluid_midi_event_get_program(event));
+    case CHANNEL_PRESSURE:
+      return fluid_synth_channel_pressure(synth, chan, fluid_midi_event_get_program(event));
+    case PITCH_BEND:
+      return fluid_synth_pitch_bend(synth, chan, fluid_midi_event_get_pitch(event));
+    case MIDI_SYSTEM_RESET:
+      return fluid_synth_system_reset(synth);
+  }
+  return FLUID_FAILED;
+}
+
+/* Purpose:
+ * Any MIDI event from the MIDI router arrives here and is handed
+ * to the appropriate function.
+ */
+int fluid_synth_handle_midi_event(void* data, fluid_midi_event_t* event)
+{
+  fluid_synth_t* synth = (fluid_synth_t*) data;
+  return fluid_midi_send_event(synth, NULL, event);
 }

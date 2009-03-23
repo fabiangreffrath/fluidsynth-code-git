@@ -564,11 +564,10 @@ new_fluid_synth(fluid_settings_t *settings)
     }
   }
   
-  fluid_synth_set_reverb(synth,
-    FLUID_REVERB_DEFAULT_ROOMSIZE,
-    FLUID_REVERB_DEFAULT_DAMP,
-    FLUID_REVERB_DEFAULT_WIDTH,
-    FLUID_REVERB_DEFAULT_LEVEL);
+  fluid_synth_set_reverb_roomsize(synth, FLUID_REVERB_DEFAULT_ROOMSIZE);
+  fluid_synth_set_reverb_damp(synth, FLUID_REVERB_DEFAULT_DAMP);
+  fluid_synth_set_reverb_width(synth, FLUID_REVERB_DEFAULT_WIDTH);
+  fluid_synth_set_reverb_level(synth, FLUID_REVERB_DEFAULT_LEVEL);
 
   /* FIXME */
   synth->start = fluid_curtime();
@@ -1568,10 +1567,9 @@ int fluid_synth_set_reverb_preset(fluid_synth_t* synth, int num)
 }
 
 /*
- * fluid_synth_set_reverb
+ * fluid_synth_set_reverb_roomsize
  */
-void fluid_synth_set_reverb(fluid_synth_t* synth, double roomsize, double damping,
-			   double width, double level)
+void fluid_synth_set_reverb_roomsize(fluid_synth_t* synth, double roomsize)
 {
   int i;
 /*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
@@ -1579,17 +1577,55 @@ void fluid_synth_set_reverb(fluid_synth_t* synth, double roomsize, double dampin
 
   for(i = 0; i < synth->nbuf; i++) {
     fluid_revmodel_setroomsize(synth->reverb[i], roomsize);
+  }
+}
+
+/*
+ * fluid_synth_set_reverb_damp
+ */
+void fluid_synth_set_reverb_damp(fluid_synth_t* synth, double damping)
+{
+  int i;
+/*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
+/*   fluid_mutex_unlock(synth->busy); */
+
+  for(i = 0; i < synth->nbuf; i++) {
     fluid_revmodel_setdamp(synth->reverb[i], damping);
+  }
+}
+
+/*
+ * fluid_synth_set_reverb_width
+ */
+void fluid_synth_set_reverb_width(fluid_synth_t* synth, double width)
+{
+  int i;
+/*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
+/*   fluid_mutex_unlock(synth->busy); */
+
+  for(i = 0; i < synth->nbuf; i++) {
     fluid_revmodel_setwidth(synth->reverb[i], width);
+  }
+}
+
+/*
+ * fluid_synth_set_reverb_level
+ */
+void fluid_synth_set_reverb_level(fluid_synth_t* synth, double level)
+{
+  int i;
+/*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
+/*   fluid_mutex_unlock(synth->busy); */
+
+  for(i = 0; i < synth->nbuf; i++) {
     fluid_revmodel_setlevel(synth->reverb[i], level);
   }
 }
 
 /*
- * fluid_synth_set_chorus
+ * fluid_synth_set_chorus_nr
  */
-void fluid_synth_set_chorus(fluid_synth_t* synth, int nr, double level,
-			   double speed, double depth_ms, int type)
+void fluid_synth_set_chorus_nr(fluid_synth_t* synth, int nr)
 {
   int i;
 /*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
@@ -1597,9 +1633,65 @@ void fluid_synth_set_chorus(fluid_synth_t* synth, int nr, double level,
 
   for (i = 0; i < synth->nbuf; i++) {
     fluid_chorus_set_nr(synth->chorus[i], nr);
+    fluid_chorus_update(synth->chorus[i]);
+  }
+}
+
+/*
+ * fluid_synth_set_chorus_level
+ */
+void fluid_synth_set_chorus_level(fluid_synth_t* synth, double level)
+{
+  int i;
+/*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
+/*   fluid_mutex_unlock(synth->busy); */
+
+  for (i = 0; i < synth->nbuf; i++) {
     fluid_chorus_set_level(synth->chorus[i], (fluid_real_t)level);
+    fluid_chorus_update(synth->chorus[i]);
+  }
+}
+
+/*
+ * fluid_synth_set_chorus_speed
+ */
+void fluid_synth_set_chorus_speed(fluid_synth_t* synth, double speed)
+{
+  int i;
+/*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
+/*   fluid_mutex_unlock(synth->busy); */
+
+  for (i = 0; i < synth->nbuf; i++) {
     fluid_chorus_set_speed_Hz(synth->chorus[i], (fluid_real_t)speed);
+    fluid_chorus_update(synth->chorus[i]);
+  }
+}
+
+/*
+ * fluid_synth_set_chorus_depth
+ */
+void fluid_synth_set_chorus_depth(fluid_synth_t* synth, double depth_ms)
+{
+  int i;
+/*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
+/*   fluid_mutex_unlock(synth->busy); */
+
+  for (i = 0; i < synth->nbuf; i++) {
     fluid_chorus_set_depth_ms(synth->chorus[i], (fluid_real_t)depth_ms);
+    fluid_chorus_update(synth->chorus[i]);
+  }
+}
+
+/*
+ * fluid_synth_set_chorus_type
+ */
+void fluid_synth_set_chorus_type(fluid_synth_t* synth, int type)
+{
+  int i;
+/*   fluid_mutex_lock(synth->busy); /\* Don't interfere with the audio thread *\/ */
+/*   fluid_mutex_unlock(synth->busy); */
+
+  for (i = 0; i < synth->nbuf; i++) {
     fluid_chorus_set_type(synth->chorus[i], type);
     fluid_chorus_update(synth->chorus[i]);
   }
@@ -3075,53 +3167,6 @@ float fluid_synth_get_gen(fluid_synth_t* synth, int chan, int param)
 
   return fluid_channel_get_gen(synth->channel[chan], param);
 }
-
-/* The synth needs to know the router for the command line handlers (they only
- * supply the synth as argument)
- */
-void fluid_synth_set_midi_router(fluid_synth_t* synth, fluid_midi_router_t* router){
-  synth->midi_router=router;
-};
-
-/* Purpose:
- * Any MIDI event from the MIDI router arrives here and is handed
- * to the appropriate function.
- */
-int fluid_synth_handle_midi_event(void* data, fluid_midi_event_t* event)
-{
-  fluid_synth_t* synth = (fluid_synth_t*) data;
-  int type = fluid_midi_event_get_type(event);
-  int chan = fluid_midi_event_get_channel(event);
-
-  switch(type) {
-      case NOTE_ON:
-	return fluid_synth_noteon(synth, chan,
-				 fluid_midi_event_get_key(event),
-				 fluid_midi_event_get_velocity(event));
-
-      case NOTE_OFF:
-	return fluid_synth_noteoff(synth, chan, fluid_midi_event_get_key(event));
-
-      case CONTROL_CHANGE:
-	return fluid_synth_cc(synth, chan,
-			     fluid_midi_event_get_control(event),
-			     fluid_midi_event_get_value(event));
-
-      case PROGRAM_CHANGE:
-	return fluid_synth_program_change(synth, chan, fluid_midi_event_get_program(event));
-
-      case CHANNEL_PRESSURE:
-      return fluid_synth_channel_pressure(synth, chan, fluid_midi_event_get_program(event));
-
-      case PITCH_BEND:
-	return fluid_synth_pitch_bend(synth, chan, fluid_midi_event_get_pitch(event));
-
-      case MIDI_SYSTEM_RESET:
-	return fluid_synth_system_reset(synth);
-  }
-  return FLUID_FAILED;
-}
-
 
 int fluid_synth_start(fluid_synth_t* synth, unsigned int id, fluid_preset_t* preset,
 		      int audio_chan, int midi_chan, int key, int vel)

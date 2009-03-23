@@ -47,7 +47,7 @@ typedef struct _fluid_midi_event_t fluid_midi_event_t;
 typedef struct _fluid_midi_driver_t fluid_midi_driver_t;
 typedef struct _fluid_midi_router_t fluid_midi_router_t;
 typedef struct _fluid_midi_router_rule_t fluid_midi_router_rule_t;
-typedef struct _fluid_hashtable_t fluid_cmd_handler_t;
+typedef struct _fluid_hashtable_t fluid_cmd_hash_t;
 typedef struct _fluid_shell_t fluid_shell_t;
 typedef struct _fluid_server_t fluid_server_t;
 typedef struct _fluid_event_t fluid_event_t;

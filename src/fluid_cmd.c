@@ -52,6 +52,8 @@ fluid_cmd_t fluid_commands[] = {
     "help                       Command summary. 'help help' for more help topics" },
   { "quit", "general", (fluid_cmd_func_t) fluid_handle_quit, NULL,
     "quit                       Quit the synthesizer" },
+  { "source", "general", (fluid_cmd_func_t) fluid_handle_source, NULL,
+  "source filename            Load a file and parse every line as a command" },
   { "noteon", "event", (fluid_cmd_func_t) fluid_handle_noteon, NULL,
     "noteon chan key vel        Send noteon" },
   { "noteoff", "event", (fluid_cmd_func_t) fluid_handle_noteoff, NULL,
@@ -140,19 +142,19 @@ fluid_cmd_t fluid_commands[] = {
   { "ladspa_setnode", "ladspa", (fluid_cmd_func_t) fluid_LADSPA_handle_setnode, NULL,
     "ladspa_setnode node value  Assigns `value' to `node'"},
 #endif
-  { "router_clear", "router", (fluid_cmd_func_t) fluid_midi_router_handle_clear, NULL,
+  { "router_clear", "router", (fluid_cmd_func_t) fluid_handle_router_clear, NULL,
     "router_clear               Clears all routing rules from the midi router"},
-  { "router_default", "router", (fluid_cmd_func_t) fluid_midi_router_handle_default, NULL,
+  { "router_default", "router", (fluid_cmd_func_t) fluid_handle_router_default, NULL,
     "router_default             Resets the midi router to default state"},
-  { "router_begin", "router", (fluid_cmd_func_t) fluid_midi_router_handle_begin, NULL,
+  { "router_begin", "router", (fluid_cmd_func_t) fluid_handle_router_begin, NULL,
     "router_begin [note|cc|prog|pbend|cpress|kpress]: Starts a new routing rule"},
-  { "router_chan", "router", (fluid_cmd_func_t) fluid_midi_router_handle_chan, NULL,
+  { "router_chan", "router", (fluid_cmd_func_t) fluid_handle_router_chan, NULL,
     "router_chan min max mul add      filters and maps midi channels on current rule"},
-  { "router_par1", "router", (fluid_cmd_func_t) fluid_midi_router_handle_par1, NULL,
+  { "router_par1", "router", (fluid_cmd_func_t) fluid_handle_router_par1, NULL,
     "router_par1 min max mul add      filters and maps parameter 1 (key/ctrl nr)"},
-  { "router_par2", "router", (fluid_cmd_func_t) fluid_midi_router_handle_par2, NULL,
+  { "router_par2", "router", (fluid_cmd_func_t) fluid_handle_router_par2, NULL,
     "router_par2 min max mul add      filters and maps parameter 2 (vel/cc val)"},
-  { "router_end", "router", (fluid_cmd_func_t) fluid_midi_router_handle_end, NULL,
+  { "router_end", "router", (fluid_cmd_func_t) fluid_handle_router_end, NULL,
     "router_end                 closes and commits the current routing rule"},
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -370,7 +372,7 @@ fluid_get_sysconf(char* buf, int len)
  *  handlers
  */
 int
-fluid_handle_noteon(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_noteon(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 3) {
     fluid_ostream_printf(out, "noteon: too few arguments\n");
@@ -380,11 +382,11 @@ fluid_handle_noteon(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
     fluid_ostream_printf(out, "noteon: invalid argument\n");
     return -1;
   }
-  return fluid_synth_noteon(synth, atoi(av[0]), atoi(av[1]), atoi(av[2]));
+  return fluid_synth_noteon(handler->synth, atoi(av[0]), atoi(av[1]), atoi(av[2]));
 }
 
 int
-fluid_handle_noteoff(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_noteoff(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 2) {
     fluid_ostream_printf(out, "noteoff: too few arguments\n");
@@ -394,11 +396,11 @@ fluid_handle_noteoff(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t ou
     fluid_ostream_printf(out, "noteon: invalid argument\n");
     return -1;
   }
-  return fluid_synth_noteoff(synth, atoi(av[0]), atoi(av[1]));
+  return fluid_synth_noteoff(handler->synth, atoi(av[0]), atoi(av[1]));
 }
 
 int
-fluid_handle_cc(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_cc(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 3) {
     fluid_ostream_printf(out, "cc: too few arguments\n");
@@ -408,11 +410,11 @@ fluid_handle_cc(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
     fluid_ostream_printf(out, "cc: invalid argument\n");
     return -1;
   }
-  return fluid_synth_cc(synth, atoi(av[0]), atoi(av[1]), atoi(av[2]));
+  return fluid_synth_cc(handler->synth, atoi(av[0]), atoi(av[1]), atoi(av[2]));
 }
 
 int
-fluid_handle_prog(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_prog(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 2) {
     fluid_ostream_printf(out, "prog: too few arguments\n");
@@ -422,11 +424,11 @@ fluid_handle_prog(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
     fluid_ostream_printf(out, "prog: invalid argument\n");
     return -1;
   }
-  return fluid_synth_program_change(synth, atoi(av[0]), atoi(av[1]));
+  return fluid_synth_program_change(handler->synth, atoi(av[0]), atoi(av[1]));
 }
 
 int
-fluid_handle_select(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_select(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int sfont_id;
   int chan;
@@ -449,17 +451,17 @@ fluid_handle_select(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
   prog = atoi(av[3]);
 
   if (sfont_id != 0) {
-    return fluid_synth_program_select(synth, chan, sfont_id, bank, prog);
+    return fluid_synth_program_select(handler->synth, chan, sfont_id, bank, prog);
   } else {
-    if (fluid_synth_bank_select(synth, chan, bank) == FLUID_OK) {
-      return fluid_synth_program_change(synth, chan, prog);
+    if (fluid_synth_bank_select(handler->synth, chan, bank) == FLUID_OK) {
+      return fluid_synth_program_change(handler->synth, chan, prog);
     }
     return FLUID_FAILED;
   }
 }
 
 int
-fluid_handle_inst(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_inst(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int font;
   fluid_sfont_t* sfont;
@@ -478,8 +480,8 @@ fluid_handle_inst(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 
   font = atoi(av[0]);
 
-  sfont = fluid_synth_get_sfont_by_id(synth, font);
-  offset = fluid_synth_get_bank_offset(synth, font);
+  sfont = fluid_synth_get_sfont_by_id(handler->synth, font);
+  offset = fluid_synth_get_bank_offset(handler->synth, font);
 
   if (sfont == NULL) {
     fluid_ostream_printf(out, "inst: invalid font number\n");
@@ -500,7 +502,7 @@ fluid_handle_inst(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 
 
 int
-fluid_handle_channels(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_channels(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int i;
   fluid_preset_t* preset;
@@ -508,8 +510,8 @@ fluid_handle_channels(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t o
 
   if (ac > 0 && strcmp( av[0], "-verbose") == 0) verbose = 1;
 
-  for (i = 0; i < fluid_synth_count_midi_channels(synth); i++) {
-    preset = fluid_synth_get_channel_preset(synth, i);
+  for (i = 0; i < fluid_synth_count_midi_channels(handler->synth); i++) {
+    preset = fluid_synth_get_channel_preset(handler->synth, i);
     if (preset == NULL) fluid_ostream_printf(out, "chan %d, no preset\n", i);
     else if (!verbose) fluid_ostream_printf(out, "chan %d, %s\n", i, fluid_preset_get_name(preset));
     else fluid_ostream_printf(out, "chan %d, sfont %d, bank %d, preset %d, %s\n", i,
@@ -522,7 +524,7 @@ fluid_handle_channels(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t o
 }
 
 int
-fluid_handle_load(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_load(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   char buf[1024];
   int id;
@@ -542,7 +544,7 @@ fluid_handle_load(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 
   /* Load the SoundFont without resetting the programs. The reset will
    * be done later (if requested). */
-  id = fluid_synth_sfload(synth, fluid_expand_path(av[0], buf, 1024), 0);
+  id = fluid_synth_sfload(handler->synth, fluid_expand_path(av[0], buf, 1024), 0);
 
   if (id == -1) {
     fluid_ostream_printf(out, "failed to load the SoundFont\n");
@@ -552,19 +554,19 @@ fluid_handle_load(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
   }
 
   if (offset) {
-    fluid_synth_set_bank_offset(synth, id, offset);
+    fluid_synth_set_bank_offset(handler->synth, id, offset);
   }
 
   /* The reset should be done after the offset is set. */
   if (reset) {
-    fluid_synth_program_reset(synth);
+    fluid_synth_program_reset(handler->synth);
   }
 
   return 0;
 }
 
 int
-fluid_handle_unload(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_unload(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int reset = 1;
   if (ac < 1) {
@@ -578,7 +580,7 @@ fluid_handle_unload(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
   if (ac == 2) {
     reset = atoi(av[1]);
   }
-  if (fluid_synth_sfunload(synth, atoi(av[0]), reset) != 0) {
+  if (fluid_synth_sfunload(handler->synth, atoi(av[0]), reset) != 0) {
     fluid_ostream_printf(out, "failed to unload the SoundFont\n");
     return -1;
   }
@@ -586,7 +588,7 @@ fluid_handle_unload(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
 }
 
 int
-fluid_handle_reload(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reload(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 1) {
     fluid_ostream_printf(out, "reload: too few arguments\n");
@@ -596,7 +598,7 @@ fluid_handle_reload(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
     fluid_ostream_printf(out, "reload: expected a number as argument\n");
     return -1;
   }
-  if (fluid_synth_sfreload(synth, atoi(av[0])) == -1) {
+  if (fluid_synth_sfreload(handler->synth, atoi(av[0])) == -1) {
     fluid_ostream_printf(out, "failed to reload the SoundFont\n");
     return -1;
   }
@@ -605,13 +607,13 @@ fluid_handle_reload(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
 
 
 int
-fluid_handle_fonts(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_fonts(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int i;
   fluid_sfont_t* sfont;
   int num;
 
-  num = fluid_synth_sfcount(synth);
+  num = fluid_synth_sfcount(handler->synth);
 
   if (num == 0) {
     fluid_ostream_printf(out, "no SoundFont loaded (try load)\n");
@@ -621,7 +623,7 @@ fluid_handle_fonts(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
   fluid_ostream_printf(out, "ID  Name\n");
 
   for (i = 0; i < num; i++) {
-    sfont = fluid_synth_get_sfont(synth, i);
+    sfont = fluid_synth_get_sfont(handler->synth, i);
     fluid_ostream_printf(out, "%2d  %s\n",
 			fluid_sfont_get_id(sfont),
 			fluid_sfont_get_name(sfont));
@@ -631,7 +633,7 @@ fluid_handle_fonts(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 }
 
 int
-fluid_handle_mstat(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_mstat(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
 /*    fluid_ostream_printf(out, "Dvr=%s, Dev=%s\n",  */
 /*  	 fluid_midi_handler_get_driver_name(midi), */
@@ -651,7 +653,7 @@ fluid_handle_mstat(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
  * Response to 'rev_preset' command.
  * Load the values from a reverb preset into the reverb unit. */
 int
-fluid_handle_reverbpreset(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reverbpreset(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int reverb_preset_number;
   if (ac < 1) {
@@ -659,7 +661,7 @@ fluid_handle_reverbpreset(fluid_synth_t* synth, int ac, char** av, fluid_ostream
     return -1;
   }
   reverb_preset_number = atoi(av[0]);
-  if (fluid_synth_set_reverb_preset(synth, reverb_preset_number)!=FLUID_OK){
+  if (fluid_synth_set_reverb_preset(handler->synth, reverb_preset_number)!=FLUID_OK){
     fluid_ostream_printf(out, "rev_preset: Failed. Parameter out of range?\n");
     return -1;
   };
@@ -670,10 +672,9 @@ fluid_handle_reverbpreset(fluid_synth_t* synth, int ac, char** av, fluid_ostream
  * Response to 'rev_setroomsize' command.
  * Load the new room size into the reverb unit. */
 int
-fluid_handle_reverbsetroomsize(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reverbsetroomsize(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t room_size;
-  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setroomsize: too few arguments.\n");
     return -1;
@@ -687,9 +688,7 @@ fluid_handle_reverbsetroomsize(fluid_synth_t* synth, int ac, char** av, fluid_os
     fluid_ostream_printf(out, "rev_setroomsize: Room size too big!\n");
     return -1;
   }
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_revmodel_setroomsize(synth->reverb[i], room_size);
-  }
+  fluid_synth_set_reverb_roomsize(handler->synth, room_size);
   return 0;
 }
 
@@ -697,10 +696,9 @@ fluid_handle_reverbsetroomsize(fluid_synth_t* synth, int ac, char** av, fluid_os
  * Response to 'rev_setdamp' command.
  * Load the new damp factor into the reverb unit. */
 int
-fluid_handle_reverbsetdamp(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reverbsetdamp(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t damp;
-  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setdamp: too few arguments.\n");
     return -1;
@@ -710,9 +708,7 @@ fluid_handle_reverbsetdamp(fluid_synth_t* synth, int ac, char** av, fluid_ostrea
     fluid_ostream_printf(out, "rev_setdamp: damp must be between 0 and 1!\n");
     return -1;
   }
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_revmodel_setdamp(synth->reverb[i], damp);
-  }
+  fluid_synth_set_reverb_damp(handler->synth, damp);
   return 0;
 }
 
@@ -720,10 +716,9 @@ fluid_handle_reverbsetdamp(fluid_synth_t* synth, int ac, char** av, fluid_ostrea
  * Response to 'rev_setwidth' command.
  * Load the new width into the reverb unit. */
 int
-fluid_handle_reverbsetwidth(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reverbsetwidth(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t width;
-  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setwidth: too few arguments.\n");
     return -1;
@@ -733,9 +728,7 @@ fluid_handle_reverbsetwidth(fluid_synth_t* synth, int ac, char** av, fluid_ostre
     fluid_ostream_printf(out, "rev_setroomsize: Too wide! (0..100)\n");
     return 0;
   }
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_revmodel_setwidth(synth->reverb[i], width);
-  }
+  fluid_synth_set_reverb_width(handler->synth, width);
   return 0;
 }
 
@@ -743,10 +736,9 @@ fluid_handle_reverbsetwidth(fluid_synth_t* synth, int ac, char** av, fluid_ostre
  * Response to 'rev_setlevel' command.
  * Load the new level into the reverb unit. */
 int
-fluid_handle_reverbsetlevel(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reverbsetlevel(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t level;
-  int i;
   if (ac < 1) {
     fluid_ostream_printf(out, "rev_setlevel: too few arguments.\n");
     return -1;
@@ -756,9 +748,7 @@ fluid_handle_reverbsetlevel(fluid_synth_t* synth, int ac, char** av, fluid_ostre
     fluid_ostream_printf(out, "rev_setlevel: Value too high! (Value of 10 =+20 dB)\n");
     return 0;
   }
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_revmodel_setlevel(synth->reverb[i], level);
-  }
+  fluid_synth_set_reverb_level(handler->synth, level);
   return 0;
 }
 
@@ -766,7 +756,7 @@ fluid_handle_reverbsetlevel(fluid_synth_t* synth, int ac, char** av, fluid_ostre
  * Response to 'reverb' command.
  * Change the FLUID_REVERB flag in the synth */
 int
-fluid_handle_reverb(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reverb(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 1) {
     fluid_ostream_printf(out, "reverb: too few arguments.\n");
@@ -774,9 +764,9 @@ fluid_handle_reverb(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
   }
 
   if ((strcmp(av[0], "0") == 0) || (strcmp(av[0], "off") == 0)) {
-    fluid_synth_set_reverb_on(synth,0);
+    fluid_synth_set_reverb_on(handler->synth,0);
   } else if ((strcmp(av[0], "1") == 0) || (strcmp(av[0], "on") == 0)) {
-    fluid_synth_set_reverb_on(synth,1);
+    fluid_synth_set_reverb_on(handler->synth,1);
   } else {
     fluid_ostream_printf(out, "reverb: invalid arguments %s [0|1|on|off]", av[0]);
     return -1;
@@ -789,82 +779,66 @@ fluid_handle_reverb(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
 /* Purpose:
  * Response to 'chorus_setnr' command */
 int
-fluid_handle_chorusnr(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_chorusnr(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int nr;
-  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_nr: too few arguments.\n");
     return -1;
   }
   nr = atoi(av[0]);
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_chorus_set_nr(synth->chorus[i], nr);
-    status |= fluid_chorus_update(synth->chorus[i]);
-  }
-  return status;
+  fluid_synth_set_chorus_nr(handler->synth, nr);
+  return 0;
 }
 
 /* Purpose:
  * Response to 'chorus_setlevel' command */
 int
-fluid_handle_choruslevel(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_choruslevel(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t level;
-  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_level: too few arguments.\n");
     return -1;
   }
   level = atof(av[0]);
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_chorus_set_level(synth->chorus[i], level);
-    status |= fluid_chorus_update(synth->chorus[i]);
-  }
-  return status;
+  fluid_synth_set_chorus_level(handler->synth, level);
+  return 0;
 
 }
 
 /* Purpose:
  * Response to 'chorus_setspeed' command */
 int
-fluid_handle_chorusspeed(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_chorusspeed(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t speed;
-  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_speed: too few arguments.\n");
     return -1;
   }
   speed = atof(av[0]);
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_chorus_set_speed_Hz(synth->chorus[i], speed);
-    status |= fluid_chorus_update(synth->chorus[i]);
-  }
-  return status;
+  fluid_synth_set_chorus_speed(handler->synth, speed);
+  return 0;
 }
 
 /* Purpose:
  * Response to 'chorus_setdepth' command */
 int
-fluid_handle_chorusdepth(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_chorusdepth(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_real_t depth;
-  int i, status = 0;
   if (ac < 1) {
     fluid_ostream_printf(out, "cho_set_depth: too few arguments.\n");
     return -1;
   }
   depth = atof(av[0]);
-  for (i = 0; i < synth->nbuf; i++) {
-    fluid_chorus_set_depth_ms(synth->chorus[i], depth);
-    fluid_chorus_update(synth->chorus[i]);
-  }
-  return status;
+  fluid_synth_set_chorus_depth(handler->synth, depth);
+  return 0;
 }
 
 int
-fluid_handle_chorus(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_chorus(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 1) {
     fluid_ostream_printf(out, "chorus: too few arguments\n");
@@ -872,9 +846,9 @@ fluid_handle_chorus(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
   }
 
   if ((strcmp(av[0], "0") == 0) || (strcmp(av[0], "off") == 0)) {
-    fluid_synth_set_chorus_on(synth,0);
+    fluid_synth_set_chorus_on(handler->synth,0);
   } else if ((strcmp(av[0], "1") == 0) || (strcmp(av[0], "on") == 0)) {
-    fluid_synth_set_chorus_on(synth,1);
+    fluid_synth_set_chorus_on(handler->synth,1);
   } else {
     fluid_ostream_printf(out, "chorus: invalid arguments %s [0|1|on|off]", av[0]);
     return -1;
@@ -917,7 +891,7 @@ fluid_handle_source(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostre
 /* Purpose:
  * Response to 'gain' command. */
 int
-fluid_handle_gain(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_gain(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   float gain;
 
@@ -933,7 +907,7 @@ fluid_handle_gain(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
     return -1;
   };
 
-  fluid_synth_set_gain(synth, gain);
+  fluid_synth_set_gain(handler->synth, gain);
 
   return 0;
 }
@@ -941,7 +915,7 @@ fluid_handle_gain(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 /* Purpose:
  * Response to 'interp' command. */
 int
-fluid_handle_interp(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_interp(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int interp;
   int chan=-1; /* -1: Set all channels */
@@ -958,7 +932,7 @@ fluid_handle_interp(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
     return -1;
   };
 
-  fluid_synth_set_interp_method(synth, chan, interp);
+  fluid_synth_set_interp_method(handler->synth, chan, interp);
 
   return 0;
 }
@@ -966,7 +940,7 @@ fluid_handle_interp(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
 /* Purpose:
  * Response to 'interp' command. */
 int
-fluid_handle_interpc(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_interpc(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int interp;
   int chan;
@@ -979,7 +953,7 @@ fluid_handle_interpc(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t ou
   chan = atoi(av[0]);
   interp = atoi(av[1]);
 
-  if ((chan < 0) || (chan >= fluid_synth_count_midi_channels(synth))){
+  if ((chan < 0) || (chan >= fluid_synth_count_midi_channels(handler->synth))){
     fluid_ostream_printf(out, "interp: Bad value for channel number.\n");
     return -1;
   };
@@ -988,13 +962,13 @@ fluid_handle_interpc(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t ou
     return -1;
   };
 
-  fluid_synth_set_interp_method(synth, chan, interp);
+  fluid_synth_set_interp_method(handler->synth, chan, interp);
 
   return 0;
 }
 
 int
-fluid_handle_tuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_tuning(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   char *name;
   int bank, prog;
@@ -1026,13 +1000,13 @@ fluid_handle_tuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out
     return -1;
   };
 
-  fluid_synth_create_key_tuning(synth, bank, prog, name, NULL);
+  fluid_synth_create_key_tuning(handler->synth, bank, prog, name, NULL);
 
   return 0;
 }
 
 int
-fluid_handle_tune(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_tune(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int bank, prog, key;
   double pitch;
@@ -1078,13 +1052,13 @@ fluid_handle_tune(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
     return -1;
   };
 
-  fluid_synth_tune_notes(synth, bank, prog, 1, &key, &pitch, 0);
+  fluid_synth_tune_notes(handler->synth, bank, prog, 1, &key, &pitch, 0);
 
   return 0;
 }
 
 int
-fluid_handle_settuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_settuning(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int chan, bank, prog;
 
@@ -1098,7 +1072,7 @@ fluid_handle_settuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t 
     return -1;
   }
   chan = atoi(av[0]);
-  if ((chan < 0) || (chan >= fluid_synth_count_midi_channels(synth))){
+  if ((chan < 0) || (chan >= fluid_synth_count_midi_channels(handler->synth))){
     fluid_ostream_printf(out, "tune: invalid channel number.\n");
     return -1;
   };
@@ -1123,13 +1097,13 @@ fluid_handle_settuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t 
     return -1;
   };
 
-  fluid_synth_select_tuning(synth, chan, bank, prog);
+  fluid_synth_select_tuning(handler->synth, chan, bank, prog);
 
   return 0;
 }
 
 int
-fluid_handle_resettuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_resettuning(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int chan;
 
@@ -1143,27 +1117,27 @@ fluid_handle_resettuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_
     return -1;
   }
   chan = atoi(av[0]);
-  if ((chan < 0) || (chan >= fluid_synth_count_midi_channels(synth))){
+  if ((chan < 0) || (chan >= fluid_synth_count_midi_channels(handler->synth))){
     fluid_ostream_printf(out, "tune: invalid channel number.\n");
     return -1;
   };
 
-  fluid_synth_reset_tuning(synth, chan);
+  fluid_synth_reset_tuning(handler->synth, chan);
 
   return 0;
 }
 
 int
-fluid_handle_tunings(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_tunings(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int bank, prog;
   char name[256];
   int count = 0;
 
-  fluid_synth_tuning_iteration_start(synth);
+  fluid_synth_tuning_iteration_start(handler->synth);
 
-  while (fluid_synth_tuning_iteration_next(synth, &bank, &prog)) {
-    fluid_synth_tuning_dump(synth, bank, prog, name, 256, NULL);
+  while (fluid_synth_tuning_iteration_next(handler->synth, &bank, &prog)) {
+    fluid_synth_tuning_dump(handler->synth, bank, prog, name, 256, NULL);
     fluid_ostream_printf(out, "%03d-%03d %s\n", bank, prog, name);
     count++;
   }
@@ -1176,7 +1150,7 @@ fluid_handle_tunings(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t ou
 }
 
 int
-fluid_handle_dumptuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_dumptuning(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   int bank, prog, i;
   double pitch[128];
@@ -1207,7 +1181,7 @@ fluid_handle_dumptuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t
     return -1;
   };
 
-  fluid_synth_tuning_dump(synth, bank, prog, name, 256, pitch);
+  fluid_synth_tuning_dump(handler->synth, bank, prog, name, 256, pitch);
 
   fluid_ostream_printf(out, "%03d-%03d %s:\n", bank, prog, name);
 
@@ -1219,7 +1193,7 @@ fluid_handle_dumptuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t
 }
 
 int
-fluid_handle_set(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_set(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 2) {
     fluid_ostream_printf(out, "set: too few arguments.\n");
@@ -1228,47 +1202,47 @@ fluid_handle_set(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 
   if (fluid_is_number(av[1])) {
     if (FLUID_STRCHR(av[1], '.') != NULL) {
-      fluid_synth_setnum(synth, av[0], atof(av[1]));
+      fluid_synth_setnum(handler->synth, av[0], atof(av[1]));
     } else {
-      fluid_synth_setint(synth, av[0], atoi(av[1]));
+      fluid_synth_setint(handler->synth, av[0], atoi(av[1]));
     }
   } else {
-    fluid_synth_setstr(synth, av[0], av[1]);
+    fluid_synth_setstr(handler->synth, av[0], av[1]);
   }
 
   return 0;
 }
 
 int
-fluid_handle_get(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_get(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   if (ac < 1) {
     fluid_ostream_printf(out, "get: too few arguments.\n");
     return -1;
   }
 
-  switch (fluid_settings_get_type(fluid_synth_get_settings(synth), av[0])) {
+  switch (fluid_settings_get_type(fluid_synth_get_settings(handler->synth), av[0])) {
   case FLUID_NO_TYPE:
     fluid_ostream_printf(out, "get: no such settings '%s'.", av[0]);
     return -1;
 
   case FLUID_NUM_TYPE: {
     double value;
-    fluid_synth_getnum(synth, av[0], &value);
+    fluid_synth_getnum(handler->synth, av[0], &value);
     fluid_ostream_printf(out, "%.3f", value);
     break;
   }
 
   case FLUID_INT_TYPE: {
     int value;
-    fluid_synth_getint(synth, av[0], &value);
+    fluid_synth_getint(handler->synth, av[0], &value);
     fluid_ostream_printf(out, "%d", value);
     break;
   }
 
   case FLUID_STR_TYPE: {
     char* s;
-    fluid_synth_getstr(synth, av[0], &s);
+    fluid_synth_getstr(handler->synth, av[0], &s);
     fluid_ostream_printf(out, "%s", s);
     break;
   }
@@ -1333,16 +1307,16 @@ static void fluid_handle_settings_iter2(void* data, char* name, int type)
 }
 
 int
-fluid_handle_settings(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_settings(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   struct _fluid_handle_settings_data_t data;
 
   data.len = 0;
-  data.synth = synth;
+  data.synth = handler->synth;
   data.out = out;
 
-  fluid_settings_foreach(fluid_synth_get_settings(synth), &data, fluid_handle_settings_iter1);
-  fluid_settings_foreach(fluid_synth_get_settings(synth), &data, fluid_handle_settings_iter2);
+  fluid_settings_foreach(fluid_synth_get_settings(handler->synth), &data, fluid_handle_settings_iter1);
+  fluid_settings_foreach(fluid_synth_get_settings(handler->synth), &data, fluid_handle_settings_iter2);
   return 0;
 }
 
@@ -1365,9 +1339,9 @@ void fluid_handle_print_option(void* data, char* name, char* option)
 }
 
 int
-fluid_handle_info(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_info(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
-  fluid_settings_t* settings = fluid_synth_get_settings(synth);
+  fluid_settings_t* settings = fluid_synth_get_settings(handler->synth);
   struct _fluid_handle_option_data_t data;
 
   if (ac < 1) {
@@ -1441,21 +1415,21 @@ fluid_handle_info(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 }
 
 int
-fluid_handle_reset(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_reset(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
-  fluid_synth_system_reset(synth);
+  fluid_synth_system_reset(handler->synth);
   return 0;
 }
 
 int
-fluid_handle_quit(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_quit(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   fluid_ostream_printf(out, "cheers!\n");
   return -2;
 }
 
 int
-fluid_handle_help(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
+fluid_handle_help(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
   /* Purpose:
    * Prints the help text for the command line commands.
@@ -1510,6 +1484,185 @@ fluid_handle_help(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
   };
   return 0;
 }
+
+int fluid_handle_router_clear(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
+{
+  fluid_midi_router_t* router=handler->router;
+
+  if (ac != 0) {
+    fluid_ostream_printf(out, "router_clear needs no arguments.\n");
+    goto error_recovery;
+  }
+
+  /* Disable rules and mark for destruction */
+  fluid_midi_router_disable_all_rules(router);
+
+  /* Free unused rules */
+  fluid_midi_router_free_unused_rules(router);
+
+  return 0;
+ error_recovery:
+  return -1;
+};
+
+int fluid_handle_router_default(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
+{
+  fluid_midi_router_t* router=handler->router;
+
+  if (ac != 0) {
+    fluid_ostream_printf(out, "router_default needs no arguments.\n");
+    return -1;
+  }
+
+  /* Disable rules and mark for destruction */
+  fluid_midi_router_disable_all_rules(router);
+
+  /* Create default rules */
+  if (fluid_midi_router_create_default_rules(router) != FLUID_OK){
+    FLUID_LOG(FLUID_ERR, "create_default_rules failed");
+    goto error_recovery;
+  };
+
+  /* Free unused rules */
+  fluid_midi_router_free_unused_rules(router);
+
+  return 0;
+ error_recovery:
+  return -1;
+};
+
+int fluid_handle_router_begin(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
+{
+  fluid_midi_router_t* router=handler->router;
+  fluid_midi_router_rule_t** dest=NULL;
+
+  if (ac != 1) {
+    fluid_ostream_printf(out, "router_begin needs no arguments.\n");
+      goto error_recovery;
+  }
+
+  if (FLUID_STRCMP(av[0],"note") == 0){
+    dest=& router->note_rules;
+  } else if (FLUID_STRCMP(av[0],"cc") == 0){
+    dest=& router->cc_rules;
+  } else if (FLUID_STRCMP(av[0],"prog") == 0){
+    dest=& router->progchange_rules;
+  } else if (FLUID_STRCMP(av[0],"pbend") == 0){
+    dest=& router->pitchbend_rules;
+  } else if (FLUID_STRCMP(av[0],"cpress") == 0){
+    dest=& router->channel_pressure_rules;
+  } else if (FLUID_STRCMP(av[0],"kpress") == 0){
+    dest=& router->key_pressure_rules;
+  };
+
+  if (dest == NULL){
+      fluid_ostream_printf(out, "router_begin args: note, cc, prog, pbend, cpress, kpress\n");
+      goto error_recovery;
+  };
+
+  if (fluid_midi_router_begin(router, dest) != FLUID_OK){
+    goto error_recovery;
+  };
+
+  /* Free unused rules (give it a try) */
+  fluid_midi_router_free_unused_rules(router);
+
+  return 0;
+
+ error_recovery:
+  return -1;
+};
+
+int fluid_handle_router_end(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
+{
+  fluid_midi_router_t* router=handler->router;
+
+  if (ac != 0) {
+    fluid_ostream_printf(out, "router_end needs no arguments.");
+    goto error_recovery;
+  }
+
+  if (fluid_midi_router_end(router) != FLUID_OK){
+    FLUID_LOG(FLUID_ERR, "midi_router_end failed");
+    goto error_recovery;
+  };
+
+  /* Free unused rules (give it a try) */
+  fluid_midi_router_free_unused_rules(router);
+
+  return 0;
+
+ error_recovery:
+  return -1;
+};
+
+int fluid_handle_router_chan(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
+{
+  fluid_midi_router_t* router=handler->router;
+
+  if (ac != 4) {
+    fluid_ostream_printf(out, "router_chan needs four args: min, max, mul, add.");
+    goto error_recovery;
+  }
+
+  router->new_rule_chan_min=atoi(av[0]);
+  router->new_rule_chan_max=atoi(av[1]);
+  router->new_rule_chan_mul=atoi(av[2]);
+  router->new_rule_chan_add=atoi(av[3]);
+
+  /* Free unused rules (give it a try) */
+  fluid_midi_router_free_unused_rules(router);
+
+  return 0;
+
+ error_recovery:
+  return -1;
+};
+
+int fluid_handle_router_par1(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
+{
+  fluid_midi_router_t* router=handler->router;
+
+  if (ac != 4) {
+    fluid_ostream_printf(out, "router_par1 needs four args: min, max, mul, add.");
+    goto error_recovery;
+  }
+
+  router->new_rule_par1_min=atoi(av[0]);
+  router->new_rule_par1_max=atoi(av[1]);
+  router->new_rule_par1_mul=atoi(av[2]);
+  router->new_rule_par1_add=atoi(av[3]);
+
+  /* Free unused rules (give it a try) */
+  fluid_midi_router_free_unused_rules(router);
+
+  return 0;
+
+ error_recovery:
+  return -1;
+};
+
+int fluid_handle_router_par2(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
+{
+  fluid_midi_router_t* router=handler->router;
+
+  if (ac != 4) {
+    fluid_ostream_printf(out, "router_par2 needs four args: min, max, mul, add.");
+    goto error_recovery;
+  }
+
+  router->new_rule_par2_min=atoi(av[0]);
+  router->new_rule_par2_max=atoi(av[1]);
+  router->new_rule_par2_mul=atoi(av[2]);
+  router->new_rule_par2_add=atoi(av[3]);
+
+  /* Free unused rules (give it a try) */
+  fluid_midi_router_free_unused_rules(router);
+  return 0;
+
+ error_recovery:
+  return -1;
+};
 
 int
 fluid_is_number(char* a)
@@ -1602,50 +1755,48 @@ void fluid_cmd_handler_delete(void* value, int type)
   delete_fluid_cmd((fluid_cmd_t*) value);
 }
 
-fluid_cmd_handler_t* new_fluid_cmd_handler(fluid_synth_t* synth)
+fluid_cmd_handler_t* new_fluid_cmd_handler(fluid_synth_t* synth, fluid_midi_router_t* router)
 {
   int i;
   fluid_cmd_handler_t* handler;
 
-  fluid_cmd_t source = {
-    "source", "general", (fluid_cmd_func_t) fluid_handle_source, NULL,
-    "source filename            Load a file and parse every line as a command"
-  };
-
-  handler = new_fluid_hashtable(fluid_cmd_handler_delete);
+  handler = FLUID_NEW(fluid_cmd_handler_t);
   if (handler == NULL) {
     return NULL;
   }
-
-  if (synth != NULL) {
-    for (i = 0; fluid_commands[i].name != NULL; i++) {
-      fluid_commands[i].data = synth;
-      fluid_cmd_handler_register(handler, &fluid_commands[i]);
-      fluid_commands[i].data = NULL;
-    }
+  handler->commands = new_fluid_hashtable(fluid_cmd_handler_delete);
+  if (handler->commands == NULL) {
+    return NULL;
   }
 
-  source.data = handler;
-  fluid_cmd_handler_register(handler, &source);
+  handler->synth = synth;
+  handler->router = router;
+  
+  if (synth != NULL) {
+    for (i = 0; fluid_commands[i].name != NULL; i++) {
+      fluid_cmd_handler_register(handler, &fluid_commands[i]);
+    }
+  }
 
   return handler;
 }
 
 void delete_fluid_cmd_handler(fluid_cmd_handler_t* handler)
 {
-  delete_fluid_hashtable(handler);
+  delete_fluid_hashtable(handler->commands);
+  FLUID_FREE(handler);
 }
 
 int fluid_cmd_handler_register(fluid_cmd_handler_t* handler, fluid_cmd_t* cmd)
 {
   fluid_cmd_t* copy = fluid_cmd_copy(cmd);
-  fluid_hashtable_insert(handler, copy->name, copy, 0);
+  fluid_hashtable_insert(handler->commands, copy->name, copy, 0);
   return 0;
 }
 
 int fluid_cmd_handler_unregister(fluid_cmd_handler_t* handler, char* cmd)
 {
-  return fluid_hashtable_remove(handler, cmd);
+  return fluid_hashtable_remove(handler->commands, cmd);
 }
 
 int fluid_cmd_handler_handle(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
@@ -1653,10 +1804,10 @@ int fluid_cmd_handler_handle(fluid_cmd_handler_t* handler, int ac, char** av, fl
   void *vp;	/* use a void pointer to avoid GCC "type-punned pointer" warning */
   fluid_cmd_t* cmd;
 
-  if (fluid_hashtable_lookup(handler, av[0], &vp, NULL)
+  if (fluid_hashtable_lookup(handler->commands, av[0], &vp, NULL)
       && ((fluid_cmd_t *)vp)->handler) {
     cmd = vp;
-    return (*cmd->handler)(cmd->data, ac - 1, av + 1, out);
+    return (*cmd->handler)(handler, ac - 1, av + 1, out);
   } else {
     fluid_ostream_printf(out, "unknown command: %s (try help)\n", av[0]);
     return -1;
@@ -1672,7 +1823,7 @@ struct _fluid_server_t {
   fluid_server_socket_t* socket;
   fluid_settings_t* settings;
   fluid_server_newclient_func_t newclient;
-  void* data;
+  fluid_cmd_handler_t* handler;
   fluid_list_t* clients;
   fluid_mutex_t mutex;
 };
@@ -1684,8 +1835,7 @@ static void fluid_server_close(fluid_server_t* server);
 
 fluid_server_t*
 new_fluid_server(fluid_settings_t* settings,
-		fluid_server_newclient_func_t newclient,
-		void* data)
+		fluid_cmd_handler_t* handler)
 {
   fluid_server_t* server;
   int port;
@@ -1698,8 +1848,7 @@ new_fluid_server(fluid_settings_t* settings,
 
   server->settings = settings;
   server->clients = NULL;
-  server->newclient = newclient;
-  server->data = data;
+  server->handler = handler;
 
   fluid_mutex_init(server->mutex);
 
@@ -1764,7 +1913,7 @@ fluid_server_handle_connection(fluid_server_t* server, fluid_socket_t client_soc
   fluid_client_t* client;
   fluid_cmd_handler_t* handler;
 
-  handler = server->newclient(server->data, addr);
+  handler = new_fluid_cmd_handler(server->handler->synth, server->handler->router);
   if (handler == NULL) {
     return;
   }
