@@ -54,6 +54,13 @@ void fluid_log_config(void);
 void fluid_time_config(void);
 
 
+/* Misc */
+
+#define fluid_return_val_if_fail  g_return_val_if_fail
+#define fluid_return_if_fail      g_return_if_fail
+#define FLUID_INLINE              inline
+
+
 /*
  * Utility functions
  */
@@ -64,7 +71,6 @@ char *fluid_strtok (char **str, char *delim);
 
   Additional debugging system, separate from the log system. This
   allows to print selected debug messages of a specific subsystem.
-
  */
 
 extern unsigned int fluid_debug_flags;
@@ -113,7 +119,7 @@ int fluid_timer_stop(fluid_timer_t* timer);
 
 /**
 
-    Muteces
+ Muteces 
 
 */
 
@@ -124,10 +130,31 @@ typedef GStaticMutex fluid_mutex_t;
 #define fluid_mutex_unlock(_m)    g_static_mutex_unlock(&(_m))
 
 
-/**
-     Threads
+/* Atomic operations */
 
-*/
+#define fluid_atomic_int_inc(_pi) g_atomic_int_inc(_pi)
+#define fluid_atomic_int_add(_pi, _val) g_atomic_int_add(_pi, _val)
+#define fluid_atomic_int_get(_pi) g_atomic_int_get(_pi)
+#define fluid_atomic_int_set(_pi, _val) g_atomic_int_set(_pi, _val)
+#define fluid_atomic_int_dec(_pi) g_atomic_int_dec_and_test(_pi)
+
+#define fluid_atomic_pointer_get(_pp)    g_atomic_pointer_get(_pp)
+#define fluid_atomic_pointer_compare_and_exchange(_pp, _old, _new) \
+  g_atomic_pointer_compare_and_exchange(_pp, _old, _new)
+
+
+/* Thread private data */
+
+#define fluid_private_t                            GStaticPrivate
+#define fluid_private_init(_priv)                  g_static_private_init(&(_priv))
+#define fluid_private_get(_priv)                   g_static_private_get(&(_priv))
+#define fluid_private_set(_priv, _data, _notify)   g_static_private_set(&(_priv), _data, _notify)
+
+
+/**
+ Threads
+
+ */
 
 typedef GThread fluid_thread_t;
 typedef void (*fluid_thread_func_t)(void* data);
@@ -138,10 +165,14 @@ fluid_thread_t* new_fluid_thread(fluid_thread_func_t func, void* data, int detac
 int delete_fluid_thread(fluid_thread_t* thread);
 int fluid_thread_join(fluid_thread_t* thread);
 
-/**
-     Sockets and I/O
+#define FLUID_THREAD_ID_NULL            NULL                    /* A NULL "ID" value */
+#define fluid_thread_id_t               GThread *               /* Data type for a thread ID */
+#define fluid_thread_get_id()           g_thread_self()         /* Get unique "ID" for current thread */
 
-*/
+/**
+      Sockets and I/O
+
+ */
 
 fluid_istream_t fluid_get_stdin (void);
 fluid_ostream_t fluid_get_stdout (void);

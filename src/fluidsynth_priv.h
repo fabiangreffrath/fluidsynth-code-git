@@ -198,7 +198,9 @@ typedef struct _fluid_sample_timer_t fluid_sample_timer_t;
  *                      CONSTANTS
  */
 
-#define FLUID_BUFSIZE                64
+#define FLUID_BUFSIZE                64         /** FluidSynth internal buffer size (in samples) */
+#define FLUID_MAX_EVENTS_PER_BUFSIZE 1024       /** Maximum queued MIDI events per #FLUID_BUFSIZE */
+#define FLUID_MAX_EVENT_QUEUES       16         /** Maximum number of unique threads queuing events */
 
 #ifndef PI
 #define PI                          3.141592654
