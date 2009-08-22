@@ -225,7 +225,7 @@ int main(int argc, char** argv)
   int midi_in = 1;
   fluid_player_t* player = NULL;
   fluid_midi_router_t* router = NULL;
-  fluid_sequencer_t* sequencer = NULL;
+  //fluid_sequencer_t* sequencer = NULL;
   fluid_midi_driver_t* mdriver = NULL;
   fluid_audio_driver_t* adriver = NULL;
   fluid_synth_t* synth = NULL;
@@ -524,20 +524,20 @@ int main(int argc, char** argv)
     /* In dump mode, text output is generated for events going into and out of the router.
      * The example dump functions are put into the chain before and after the router..
      */
-    sequencer = new_fluid_sequencer2(0);
+    //sequencer = new_fluid_sequencer2(0);
 
     router = new_fluid_midi_router(
       settings,
-      dump ? fluid_midi_dump_postrouter : fluid_sequencer_add_midi_event_to_buffer,
-      (void*)sequencer);
+      dump ? fluid_midi_dump_postrouter : fluid_synth_handle_midi_event,
+      (void*)synth);
 
-    if (router == NULL || sequencer == NULL) {
+    if (router == NULL) {
       fprintf(stderr, "Failed to create the MIDI input router; no MIDI input\n"
 	      "will be available. You can access the synthesizer \n"
 	      "through the console.\n");
     } else {
       fluid_synth_set_midi_router(synth, router); /* Fixme, needed for command handler */
-      fluid_sequencer_register_fluidsynth(sequencer, synth);
+//      fluid_sequencer_register_fluidsynth(sequencer, synth);
       mdriver = new_fluid_midi_driver(
 	settings,
 	dump ? fluid_midi_dump_prerouter : fluid_midi_router_handle_midi_event,
@@ -654,9 +654,9 @@ int main(int argc, char** argv)
 #endif
   }
 
-  if (sequencer) {
+  /*if (sequencer) {
     delete_fluid_sequencer(sequencer);
-  }
+  }*/
 
   if (adriver) {
     delete_fluid_audio_driver(adriver);

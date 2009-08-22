@@ -35,11 +35,12 @@
 extern int feenableexcept (int excepts);
 #endif
 
-/* Macro used to check if an event should be queued or not (not in synthesis thread context?) */
-#define fluid_synth_should_queue(synth)   (fluid_thread_get_id() != (synth)->synth_thread_id)
-
 /* A descriptive alias for fluid_return_if_fail/fluid_return_val_if_fail */
-#define fluid_synth_is_synth_thread     fluid_synth_should_queue
+#define fluid_synth_is_synth_thread(_s)     (fluid_thread_get_id() == (_s)->synth_thread_id)
+
+/* Macro used to check if an event should be queued or not (not in synthesis thread context?) */
+#define fluid_synth_should_queue(_s)   (!fluid_synth_is_synth_thread(_s))
+
 
 static void fluid_synth_init(void);
 static fluid_event_queue_t *fluid_synth_get_event_queue (fluid_synth_t* synth);
@@ -707,6 +708,7 @@ delete_fluid_synth(fluid_synth_t* synth)
   int i, k;
   fluid_list_t *list;
   fluid_sfont_t* sfont;
+  fluid_event_queue_t* queue;
   fluid_bank_offset_t* bank_offset;
   fluid_sfloader_t* loader;
 
@@ -839,13 +841,19 @@ delete_fluid_synth(fluid_synth_t* synth)
   FLUID_FREE(synth->LADSPA_FxUnit);
 #endif
 
-  /* free event queues */
+  /* free any queues in pool */
+  for (list = synth->queue_pool; list; list = list->next) {
+    queue = (fluid_event_queue_t *)(list->data);
+    /* Prevent double-free later */
+    for (i = 0; i < FLUID_MAX_EVENT_QUEUES; i++)
+      if (synth->queues[i] == queue) synth->queues[i] = NULL;
+    fluid_event_queue_free (queue);
+  }
+
+  /* free remaining event queues, if any */
   for (i = 0; i < FLUID_MAX_EVENT_QUEUES; i++)
     if (synth->queues[i]) fluid_event_queue_free (synth->queues[i]);
 
-  /* free any queues in pool */
-  for (list = synth->queue_pool; list; list = list->next)
-    fluid_event_queue_free ((fluid_event_queue_t *)(list->data));
 
   delete_fluid_list (synth->queue_pool);
 
@@ -2495,15 +2503,15 @@ fluid_synth_one_block(fluid_synth_t* synth, int do_not_mix_fx_to_out)
   int byte_size = FLUID_BUFSIZE * sizeof(fluid_real_t);
   double prof_ref = fluid_profile_ref();
 
+  /* Assign ID of synthesis thread, if not already set */
+  if (synth->synth_thread_id == FLUID_THREAD_ID_NULL) 
+    synth->synth_thread_id = fluid_thread_get_id ();
+
   fluid_check_fpe("??? Just starting up ???");
 
   fluid_sample_timer_process(synth);
 
   fluid_check_fpe("fluid_sample_timer_process");
-
-  /* Assign ID of synthesis thread, if not already set */
-  if (synth->synth_thread_id == FLUID_THREAD_ID_NULL)
-    synth->synth_thread_id = fluid_thread_get_id ();
 
   /* Process queued events */
   for (i = 0; i < FLUID_MAX_EVENT_QUEUES; i++)
