@@ -70,7 +70,7 @@ static int fluid_synth_pitch_wheel_sens_LOCAL(fluid_synth_t* synth, int chan,
                                               int val);
 static fluid_preset_t*
 fluid_synth_get_preset(fluid_synth_t* synth, unsigned int sfontnum,
-		      unsigned int banknum, unsigned int prognum);
+                       unsigned int banknum, unsigned int prognum);
 static void fluid_synth_update_presets(fluid_synth_t* synth);
 static int fluid_synth_update_gain(fluid_synth_t* synth,
                                    char* name, double value);
@@ -864,12 +864,15 @@ delete_fluid_synth(fluid_synth_t* synth)
   return FLUID_OK;
 }
 
-/*
- * fluid_synth_error
- *
- * The error messages are not thread-safe, yet. They are still stored
- * in a global message buffer (see fluid_sys.c).
- * */
+/**
+ * Get a textual representation of the last error
+ * @param synth FluidSynth instance
+ * @return Pointer to string of last error message.  Valid until the same
+ *   calling thread calls another FluidSynth function which fails.  String is
+ *   internal and should not be modified or freed.
+ */
+/* FIXME - The error messages are not thread-safe, yet. They are still stored
+ * in a global message buffer (see fluid_sys.c). */
 char*
 fluid_synth_error(fluid_synth_t* synth)
 {
@@ -1416,7 +1419,8 @@ fluid_synth_all_sounds_off_LOCAL(fluid_synth_t* synth, int chan)
 }
 
 /**
- * Send MIDI system reset command (big red 'panic' button).
+ * Send MIDI system reset command (big red 'panic' button), turns off notes and
+ *   resets controllers.
  * @param synth FluidSynth instance
  * @return FLUID_OK on success, FLUID_FAILED otherwise
  */
@@ -1628,10 +1632,14 @@ fluid_synth_get_pitch_wheel_sens(fluid_synth_t* synth, int chan, int* pval)
   return FLUID_OK;
 }
 
-/* Get a preset by SoundFont, bank and program numbers */
+/* Get a preset by SoundFont, bank and program numbers.
+ * Returns preset pointer or NULL.
+ *
+ * NOTE: The returned preset has been allocated, caller owns it and should
+ *       free it when finished using it. */
 static fluid_preset_t*
 fluid_synth_get_preset(fluid_synth_t* synth, unsigned int sfontnum,
-		       unsigned int banknum, unsigned int prognum)
+                       unsigned int banknum, unsigned int prognum)
 {
   fluid_preset_t* preset = NULL;
   fluid_sfont_t* sfont = NULL;
@@ -1648,7 +1656,11 @@ fluid_synth_get_preset(fluid_synth_t* synth, unsigned int sfontnum,
   return NULL;
 }
 
-/* Find a preset by bank and program numbers, returns preset pointer or NULL */
+/* Find a preset by bank and program numbers.
+ * Returns preset pointer or NULL.
+ *
+ * NOTE: The returned preset has been allocated, caller owns it and should
+ *       free it when finished using it. */
 fluid_preset_t*
 fluid_synth_find_preset(fluid_synth_t* synth, unsigned int banknum,
                         unsigned int prognum)
@@ -1686,9 +1698,7 @@ fluid_synth_program_change(fluid_synth_t* synth, int chan, int prognum)
 {
   fluid_preset_t* preset = NULL;
   fluid_channel_t* channel;
-  unsigned int banknum;
-  unsigned int sfont_id;
-  int subst_bank, subst_prog;
+  int subst_bank, subst_prog, banknum;
 
   fluid_return_val_if_fail (synth != NULL, FLUID_FAILED);
   fluid_return_val_if_fail (chan >= 0 && chan < synth->midi_channels, FLUID_FAILED);
@@ -1708,7 +1718,7 @@ fluid_synth_program_change(fluid_synth_t* synth, int chan, int prognum)
    *
    * FIXME - Shouldn't hard code bank selection for channel 10.  I think this
    * is a hack for MIDI files that do bank changes in GM mode.  Proper way to
-   * handle this would probably be to ignore bank changes when in GM mode.
+   * handle this would probably be to ignore bank changes when in GM mode. - JG
    */
   if (channel->channum == 9)
     preset = fluid_synth_find_preset(synth, DRUM_INST_BANK, prognum);
@@ -1746,9 +1756,9 @@ fluid_synth_program_change(fluid_synth_t* synth, int chan, int prognum)
 		chan, banknum, prognum, subst_bank, subst_prog); 
   }
 
-  sfont_id = preset? fluid_sfont_get_id(preset->sfont) : 0;
-  fluid_channel_set_sfontnum(channel, sfont_id);
-  fluid_channel_set_preset(channel, preset);
+  fluid_channel_set_sfontnum (channel,
+                              preset ? fluid_sfont_get_id (preset->sfont) : 0);
+  fluid_channel_set_preset (channel, preset);
 
   return FLUID_OK;
 }
@@ -1837,6 +1847,7 @@ fluid_synth_program_select(fluid_synth_t* synth, int chan, unsigned int sfont_id
 
   channel = synth->channel[chan];
 
+  /* ++ Allocate preset */
   preset = fluid_synth_get_preset(synth, sfont_id, bank_num, preset_num);
 
   if (preset == NULL) {
@@ -1851,7 +1862,7 @@ fluid_synth_program_select(fluid_synth_t* synth, int chan, unsigned int sfont_id
   fluid_channel_set_banknum(channel, bank_num);
   fluid_channel_set_prognum(channel, preset_num);
 
-  fluid_channel_set_preset(channel, preset);
+  fluid_channel_set_preset(channel, preset);    /* !! Takes over preset allocation */
 
   return FLUID_OK;
 }
@@ -2013,6 +2024,7 @@ fluid_synth_update_polyphony(fluid_synth_t* synth, char* name, int value)
  * @param synth FluidSynth instance
  * @param polyphony Polyphony to assign
  * @return FLUID_OK on success, FLUID_FAILED otherwise
+ * @since 1.0.6
  */
 int
 fluid_synth_set_polyphony(fluid_synth_t* synth, int polyphony)
@@ -2049,6 +2061,7 @@ fluid_synth_set_polyphony_LOCAL(fluid_synth_t* synth, int polyphony)
  * Get current synthesizer polyphony (max number of voices).
  * @param synth FluidSynth instance
  * @return Synth polyphony value.
+ * @since 1.0.6
  */
 int
 fluid_synth_get_polyphony(fluid_synth_t* synth)
@@ -2061,7 +2074,7 @@ fluid_synth_get_polyphony(fluid_synth_t* synth)
  * @param synth FluidSynth instance
  * @return Internal buffer size in audio frames.
  *
- * Audio is synthesized this number of frames at a time.
+ * Audio is synthesized this number of frames at a time.  Defaults to 64 frames.
  */
 int
 fluid_synth_get_internal_bufsize(fluid_synth_t* synth)
@@ -2227,14 +2240,17 @@ fluid_synth_nwrite_float(fluid_synth_t* synth, int len,
  * Synthesize floating point audio to audio buffers.
  * @param synth FluidSynth instance
  * @param len Count of audio frames to synthesize
- * @param nin Not currently used (0)
- * @param in Not currently used (NULL)
+ * @param nin Ignored
+ * @param in Ignored
  * @param nout Count of arrays in 'out'
  * @param out Array of arrays to store audio to
  * @return FLUID_OK on success, FLUID_FAIL otherwise
  *
+ * This function implements the default interface defined in fluidsynth/audio.h.
  * NOTE: Should only be called from synthesis thread.
- * BUG: Currently if nout != 2 memory allocation will occur!
+ */
+/*
+ * FIXME: Currently if nout != 2 memory allocation will occur!
  */
 int
 fluid_synth_process(fluid_synth_t* synth, int len, int nin, float** in,
@@ -2786,6 +2802,10 @@ fluid_synth_free_voice_by_kill_LOCAL(fluid_synth_t* synth)
  * @param vel MIDI velocity for the voice (0-127)
  * @return Allocated synthesis voice or NULL on error
  *
+ * This function is called by a SoundFont's preset in response to a noteon event.
+ * The returned voice comes with default modulators and generators.
+ * A single noteon event may create any number of voices, when the preset is layered.
+ *
  * NOTE: Should only be called from within synthesis thread, which includes
  * SoundFont loader preset noteon method.
  */
@@ -2925,6 +2945,9 @@ fluid_synth_kill_by_exclusive_class_LOCAL(fluid_synth_t* synth,
  * @param synth FluidSynth instance
  * @param voice Voice to activate
  *
+ * This function is called by a SoundFont's preset in response to a noteon
+ * event.  Exclusive classes are processed here.
+ *
  * NOTE: Should only be called from within synthesis thread, which includes
  * SoundFont loader preset noteon method.
  */
@@ -2973,6 +2996,10 @@ fluid_synth_add_sfloader(fluid_synth_t* synth, fluid_sfloader_t* loader)
 
 /**
  * Load a SoundFont file (filename is interpreted by SoundFont loaders).
+ * The newly loaded SoundFont will be put on top of the SoundFont
+ * stack. Presets are searched starting from the SoundFont on the
+ * top of the stack, working the way down the stack until a preset is found.
+ *
  * @param synth SoundFont instance
  * @param filename File to load
  * @param reset_presets TRUE to re-assign presets for all MIDI channels
@@ -3066,7 +3093,7 @@ fluid_synth_sfunload_callback(void* data, unsigned int msec)
 }
 
 /**
- * Reload a SoundFont.
+ * Reload a SoundFont.  The SoundFont retains its ID and index on the SoundFont stack.
  * @param synth SoundFont instance
  * @param id ID of SoundFont to reload
  * @return SoundFont ID on success, FLUID_FAILED on error
@@ -3133,7 +3160,7 @@ fluid_synth_sfreload(fluid_synth_t* synth, unsigned int id)
 }
 
 /**
- * Add a SoundFont.
+ * Add a SoundFont.  The SoundFont will be added to the top of the SoundFont stack.
  * @param synth FluidSynth instance
  * @param sfont SoundFont to add
  * @return New assigned SoundFont ID or FLUID_FAILED on error
@@ -3158,7 +3185,9 @@ fluid_synth_add_sfont(fluid_synth_t* synth, fluid_sfont_t* sfont)
 }
 
 /**
- * Remove a SoundFont.
+ * Remove a SoundFont from the SoundFont stack.  SoundFont is not freed and is
+ * the responsibility of the caller.
+ *
  * @param synth FluidSynth instance
  * @param sfont SoundFont to remove
  */
@@ -3211,7 +3240,7 @@ fluid_synth_sfcount(fluid_synth_t* synth)
 /**
  * Get SoundFont by index.
  * @param synth FluidSynth instance
- * @param num SoundFont index
+ * @param num SoundFont index on the stack (starting from 0 for top of stack).
  * @return SoundFont instance or NULL if invalid index
  */
 /* FIXME MT - Not thread safe!  Possible solution is to use SoundFont ID as the
@@ -3320,7 +3349,7 @@ fluid_synth_get_channel_preset(fluid_synth_t* synth, int chan)
  * @param id Voice ID to search for or < 0 to return list of all playing voices
  *
  * NOTE: Should only be called from within synthesis thread, which includes
- * SoundFont loader preset noteon method.  Voices are only guaranteed to remain
+ * SoundFont loader preset noteon methods.  Voices are only guaranteed to remain
  * unchanged until next synthesis process iteration.
  */
 void
@@ -3516,7 +3545,7 @@ fluid_synth_release_voice_on_same_note_LOCAL(fluid_synth_t* synth, int chan,
 /**
  * Set synthesis interpolation method on one or all MIDI channels.
  * @param synth FluidSynth instance
- * @param chan MIDI channel to set interpolation method on or < 0 for all channels
+ * @param chan MIDI channel to set interpolation method on or -1 for all channels
  * @param interp_method Interpolation method (#fluid_interp)
  * @return FLUID_OK on success, FLUID_FAILED otherwise
  */
@@ -3566,7 +3595,9 @@ fluid_synth_count_audio_channels(fluid_synth_t* synth)
 }
 
 /**
- * Get the total number of allocated audio channels.
+ * Get the total number of allocated audio channels.  Usually identical to the
+ * number of audio channels.
+ *
  * @param synth FluidSynth instance
  * @return Count of allocated audio channels
  */
@@ -3594,7 +3625,7 @@ fluid_synth_count_effects_channels(fluid_synth_t* synth)
 /**
  * Get the synth CPU load value.
  * @param synth FluidSynth instance
- * @return CPU load value
+ * @return Estimated CPU load value in percent (0-100)
  */
 double
 fluid_synth_get_cpu_load(fluid_synth_t* synth)
@@ -3670,7 +3701,8 @@ fluid_synth_create_tuning(fluid_synth_t* synth, int bank, int prog, char* name)
  * @param prog MIDI program number for this tuning (0-127)
  * @param name Label name for this tuning
  * @param pitch Array of pitch values (length of 128, each value is number of
- *   cents, for example normally note 0 is 0.0, 1 is 100.0, 60 is 6000.0, etc)
+ *   cents, for example normally note 0 is 0.0, 1 is 100.0, 60 is 6000.0, etc).
+ *   Pass NULL to create a well-tempered (normal) scale.
  * @return FLUID_OK on success, FLUID_FAILED otherwise
  */
 int
@@ -3717,7 +3749,8 @@ fluid_synth_create_octave_tuning(fluid_synth_t* synth, int bank, int prog,
  * @param key Array of MIDI key numbers (length of 'len', values 0-127)
  * @param pitch Array of pitch values (length of 'len', values are number of
  *   cents from MIDI note 0)
- * @param apply Not used currently (set to 0)
+ * @param apply Not used currently, may be used in the future to apply tuning
+ *   change in realtime.
  * @return FLUID_OK on success, FLUID_FAILED otherwise
  */
 int
@@ -3758,7 +3791,7 @@ fluid_synth_select_tuning(fluid_synth_t* synth, int chan, int bank, int prog)
 }
 
 /**
- * Clear tuning scale on a MIDI channel.
+ * Clear tuning scale on a MIDI channel (set it to the default well-tempered scale).
  * @param synth FluidSynth instance
  * @param chan MIDI channel number (0 to MIDI channel count - 1)
  * @return FLUID_OK on success, FLUID_FAILED otherwise
@@ -3972,12 +4005,15 @@ fluid_synth_getint(fluid_synth_t* synth, char* name, int* val)
 }
 
 /**
- * Set a SoundFont generator (effect) value on a MIDI channel and active voices.
+ * Set a SoundFont generator (effect) value on a MIDI channel in real-time.
  * @param synth FluidSynth instance
  * @param chan MIDI channel number (0 to MIDI channel count - 1)
  * @param param SoundFont generator ID (#fluid_gen_type)
  * @param value Offset generator value to assign to the MIDI channel
  * @return FLUID_OK on success, FLUID_FAILED otherwise
+ *
+ * Parameter numbers and ranges are described in the SoundFont 2.01
+ * specification PDF, paragraph 8.1.3, page 48.  See #fluid_gen_type.
  */
 int
 fluid_synth_set_gen(fluid_synth_t* synth, int chan, int param, float value)
@@ -4012,7 +4048,7 @@ fluid_synth_set_gen_LOCAL (fluid_synth_t* synth, int chan, int param, float valu
 }
 
 /**
- * Set a SoundFont generator (effect) value on a MIDI channel and active voices.
+ * Set a SoundFont generator (effect) value on a MIDI channel in real-time.
  * @param synth FluidSynth instance
  * @param chan MIDI channel number (0 to MIDI channel count - 1)
  * @param param SoundFont generator ID (#fluid_gen_type)
@@ -4081,7 +4117,7 @@ fluid_synth_set_midi_router(fluid_synth_t* synth, fluid_midi_router_t* router)
 };
 
 /**
- * Handle MIDI event from MIDI router.
+ * Handle MIDI event from MIDI router, used as a callback function.
  * @param data FluidSynth instance
  * @param event MIDI event to handle
  * @return FLUID_OK on success, FLUID_FAILED otherwise
@@ -4120,6 +4156,37 @@ fluid_synth_handle_midi_event(void* data, fluid_midi_event_t* event)
 	return fluid_synth_system_reset(synth);
   }
   return FLUID_FAILED;
+}
+
+/**
+ * Create and start voices using a preset and a MIDI note on event.
+ * @param synth FluidSynth instance
+ * @param id Voice group ID to use (can be used with fluid_synth_stop()).
+ * @param preset Preset to synthesize
+ * @param audio_chan Unused currently, set to 0
+ * @param midi_chan MIDI channel number (0 to MIDI channel count - 1)
+ * @param key MIDI note number (0-127)
+ * @param vel MIDI velocity number (1-127)
+ * @return FLUID_OK on success, FLUID_FAILED otherwise
+ *
+ * NOTE: Should only be called from within synthesis thread, which includes
+ * SoundFont loader preset noteon method.
+ */
+int
+fluid_synth_start(fluid_synth_t* synth, unsigned int id, fluid_preset_t* preset, 
+		  int audio_chan, int midi_chan, int key, int vel)
+{
+  fluid_channel_t* channel;
+
+  fluid_return_val_if_fail (synth != NULL, FLUID_FAILED);
+  fluid_return_val_if_fail (preset != NULL, FLUID_FAILED);
+  fluid_return_val_if_fail (midi_chan >= 0 && midi_chan < synth->midi_channels, FLUID_FAILED);
+  fluid_return_val_if_fail (key >= 0 && key <= 127, FLUID_FAILED);
+  fluid_return_val_if_fail (vel >= 1 && vel <= 127, FLUID_FAILED);
+  fluid_return_val_if_fail (fluid_synth_is_synth_thread (synth), FLUID_FAILED);
+
+  synth->storeid = id;
+  return fluid_preset_noteon (preset, synth, midi_chan, key, vel);
 }
 
 /**
@@ -4167,7 +4234,7 @@ fluid_synth_get_bank_offset0_LOCKED(fluid_synth_t* synth, int sfont_id)
 }
 
 /**
- * Set bank offset of a loaded SoundFont.
+ * Offset the bank numbers of a loaded SoundFont.
  * @param synth FluidSynth instance
  * @param sfont_id ID of a loaded SoundFont
  * @param offset Bank offset value to apply to all instruments
