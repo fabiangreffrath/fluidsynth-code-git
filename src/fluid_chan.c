@@ -23,14 +23,22 @@
 #include "fluid_synth.h"
 #include "fluid_sfont.h"
 
+/* Field shift amounts for sfont_bank_prog bit field integer */
+#define PROG_SHIFTVAL   0
+#define BANK_SHIFTVAL   7
+#define SFONT_SHIFTVAL  21
+
+/* Field mask values for sfont_bank_prog bit field integer */
+#define PROG_MASKVAL    0x0000007F
+#define BANK_MASKVAL    0x001FFF80
+#define SFONT_MASKVAL   0xFFE00000
+
+
 #define SETCC(_c,_n,_v)  _c->cc[_n] = _v
 
 static void fluid_channel_init(fluid_channel_t* chan);
 
 
-/*
- * new_fluid_channel
- */
 fluid_channel_t*
 new_fluid_channel(fluid_synth_t* synth, int num)
 {
@@ -61,9 +69,8 @@ fluid_channel_init(fluid_channel_t* chan)
   prognum = 0;
   banknum = (chan->channum == 9)? 128 : 0; /* ?? */
 
-  chan->prognum = prognum;
-  chan->banknum = banknum;
-  chan->sfontnum = 0;
+  chan->sfont_bank_prog = 0 << SFONT_SHIFTVAL | banknum << BANK_SHIFTVAL
+    | prognum << PROG_SHIFTVAL;
 
   newpreset = fluid_synth_find_preset(chan->synth, banknum, prognum);
   fluid_channel_set_preset(chan, newpreset);
@@ -151,9 +158,6 @@ fluid_channel_init_ctrl(fluid_channel_t* chan, int is_all_ctrl_off)
   }
 }
 
-/*
- * delete_fluid_channel
- */
 int
 delete_fluid_channel(fluid_channel_t* chan)
 {
@@ -169,9 +173,6 @@ fluid_channel_reset(fluid_channel_t* chan)
   fluid_channel_init_ctrl(chan, 0);
 }
 
-/*
- * fluid_channel_set_preset
- */
 int
 fluid_channel_set_preset(fluid_channel_t* chan, fluid_preset_t* preset)
 {
@@ -184,61 +185,53 @@ fluid_channel_set_preset(fluid_channel_t* chan, fluid_preset_t* preset)
   return FLUID_OK;
 }
 
-/*
- * fluid_channel_get_preset
- */
 fluid_preset_t*
 fluid_channel_get_preset(fluid_channel_t* chan)
 {
   return chan->preset;
 }
 
-void
-fluid_channel_set_sfontnum(fluid_channel_t* chan, int sfontnum)
-{
-  fluid_atomic_int_set (&chan->sfontnum, sfontnum);
-}
-
-int
-fluid_channel_get_sfontnum(fluid_channel_t* chan)
-{
-  return fluid_atomic_int_get (&chan->sfontnum);
-}
-
 /*
- * fluid_channel_set_banknum
+ * Set SoundFont ID, MIDI bank and/or program.  Use -1 to use current value.
  */
 void
-fluid_channel_set_banknum(fluid_channel_t* chan, int banknum)
+fluid_channel_set_sfont_bank_prog(fluid_channel_t* chan, int sfontnum,
+                                  int banknum, int prognum)
 {
-  fluid_atomic_int_set (&chan->banknum, banknum);
+  int sfont_bank_prog, newval;
+
+  /* Loop until SoundFont, bank and program integer is atomically assigned */
+  do
+  {
+    sfont_bank_prog = fluid_atomic_int_get (&chan->sfont_bank_prog);
+    newval = sfont_bank_prog;
+
+    if (sfontnum != -1)
+      newval = (newval & ~SFONT_MASKVAL) | (sfontnum << SFONT_SHIFTVAL);
+
+    if (banknum != -1)
+      newval = (newval & ~BANK_MASKVAL) | (banknum << BANK_SHIFTVAL);
+
+    if (prognum != -1)
+      newval = (newval & ~PROG_MASKVAL) | (prognum << PROG_SHIFTVAL);
+  }
+  while (newval != sfont_bank_prog
+         && !fluid_atomic_int_compare_and_exchange (&chan->sfont_bank_prog,
+                                                    sfont_bank_prog, newval));
 }
 
-/*
- * fluid_channel_get_banknum
- */
-int
-fluid_channel_get_banknum(fluid_channel_t* chan)
-{
-  return fluid_atomic_int_get (&chan->banknum);
-}
-
-/*
- * fluid_channel_set_prognum
- */
+/* Get SoundFont ID, MIDI bank and/or program.  Use NULL to ignore a value. */
 void
-fluid_channel_set_prognum(fluid_channel_t* chan, int prognum)
+fluid_channel_get_sfont_bank_prog(fluid_channel_t* chan, int *sfont,
+                                  int *bank, int *prog)
 {
-  fluid_atomic_int_set (&chan->prognum, prognum);
-}
+  int sfont_bank_prog;
 
-/*
- * fluid_channel_get_prognum
- */
-int
-fluid_channel_get_prognum(fluid_channel_t* chan)
-{
-  return fluid_atomic_int_get (&chan->prognum);
+  sfont_bank_prog = fluid_atomic_int_get (&chan->sfont_bank_prog);
+
+  if (sfont) *sfont = (sfont_bank_prog & SFONT_MASKVAL) >> SFONT_SHIFTVAL;
+  if (bank) *bank = (sfont_bank_prog & BANK_MASKVAL) >> BANK_SHIFTVAL;
+  if (prog) *prog = (sfont_bank_prog & PROG_MASKVAL) >> PROG_SHIFTVAL;
 }
 
 /* Set MIDI custom controller value for a channel */
@@ -256,13 +249,11 @@ fluid_channel_get_cc(fluid_channel_t* chan, int num)
   return ((num >= 0) && (num < 128)) ? fluid_atomic_int_get (&chan->cc[num]) : 0;
 }
 
-/*
- * fluid_channel_get_num
- */
+/* Get MIDI channel number */
 int
 fluid_channel_get_num(fluid_channel_t* chan)
 {
-  return chan->channum;
+  return chan->channum;         /* Set only once on channel init */
 }
 
 /*

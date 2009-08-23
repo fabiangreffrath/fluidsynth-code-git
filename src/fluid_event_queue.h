@@ -29,10 +29,11 @@
  */
 enum fluid_event_queue_elem
 {
-  FLUID_EVENT_QUEUE_ELEM_MIDI,          /** Uses midi field of event value */
-  FLUID_EVENT_QUEUE_ELEM_GAIN,          /** Uses dval field of event value */
-  FLUID_EVENT_QUEUE_ELEM_POLYPHONY,     /** Uses ival field of event value */
-  FLUID_EVENT_QUEUE_ELEM_GEN            /** Uses gen field of event value */
+  FLUID_EVENT_QUEUE_ELEM_MIDI,          /**< Uses midi field of event value */
+  FLUID_EVENT_QUEUE_ELEM_GAIN,          /**< Uses dval field of event value */
+  FLUID_EVENT_QUEUE_ELEM_POLYPHONY,     /**< Uses ival field of event value */
+  FLUID_EVENT_QUEUE_ELEM_GEN,           /**< Uses gen field of event value */
+  FLUID_EVENT_QUEUE_ELEM_PRESET         /**< Uses preset field of event value */
 };
 
 /**
@@ -40,25 +41,35 @@ enum fluid_event_queue_elem
  */
 typedef struct
 {
-  int channel;          /** MIDI channel number */
-  int param;            /** FluidSynth generator ID */
-  float value;          /** Value for the generator (absolute or relative) */
-  int absolute;         /** 1 if value is absolute, 0 if relative */
+  int channel;          /**< MIDI channel number */
+  int param;            /**< FluidSynth generator ID */
+  float value;          /**< Value for the generator (absolute or relative) */
+  int absolute;         /**< 1 if value is absolute, 0 if relative */
 } fluid_event_gen_t;
+
+/**
+ * Preset channel assignment event structure.
+ */
+typedef struct
+{
+  int channel;                  /**< MIDI channel number */
+  fluid_preset_t *preset;       /**< Preset to assign (synth thread owns) */
+} fluid_event_preset_t;
 
 /**
  * Event queue element structure.
  */
 typedef struct
 {
-  char type;            /** #fluid_event_queue_elem */
+  char type;            /**< #fluid_event_queue_elem */
 
   union
   {
-    fluid_midi_event_t midi;    /** If type == #FLUID_EVENT_QUEUE_ELEM_MIDI */
-    fluid_event_gen_t gen;      /** If type == #FLUID_EVENT_QUEUE_ELEM_GEN */
-    double dval;                /** A floating point payload value */
-    int ival;                   /** An integer payload value */
+    fluid_midi_event_t midi;    /**< If type == #FLUID_EVENT_QUEUE_ELEM_MIDI */
+    fluid_event_gen_t gen;      /**< If type == #FLUID_EVENT_QUEUE_ELEM_GEN */
+    fluid_event_preset_t preset;        /**< If type == #FLUID_EVENT_QUEUE_ELEM_PRESET */
+    double dval;                /**< A floating point payload value */
+    int ival;                   /**< An integer payload value */
   };
 } fluid_event_queue_elem_t;
 
@@ -67,12 +78,12 @@ typedef struct
  */
 typedef struct
 {
-  fluid_event_queue_elem_t *array;  /** Queue array of arbitrary size elements */
-  int totalcount;       /** Total count of elements in array */
-  int count;            /** Current count of elements */
-  int in;               /** Index in queue to store next pushed element */
-  int out;              /** Index in queue of next popped element */
-  void *synth;          /** Owning fluid_synth_t instance */
+  fluid_event_queue_elem_t *array;  /**< Queue array of arbitrary size elements */
+  int totalcount;       /**< Total count of elements in array */
+  int count;            /**< Current count of elements */
+  int in;               /**< Index in queue to store next pushed element */
+  int out;              /**< Index in queue of next popped element */
+  void *synth;          /**< Owning fluid_synth_t instance */
 } fluid_event_queue_t;
 
 

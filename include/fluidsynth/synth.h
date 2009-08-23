@@ -170,14 +170,10 @@ enum fluid_interp {
   FLUID_INTERP_7THORDER = 7,    /**< Seventh-order interpolation */
 };
 
-/**
- * Default interpolation method from #fluid_interp.
- */
+/** Default interpolation method from #fluid_interp. */
 #define FLUID_INTERP_DEFAULT    FLUID_INTERP_4THORDER
 
-/**
- * Highest interpolation method from #fluid_interp.
- */
+/** Highest interpolation method from #fluid_interp. */
 #define FLUID_INTERP_HIGHEST    FLUID_INTERP_7THORDER
 
 

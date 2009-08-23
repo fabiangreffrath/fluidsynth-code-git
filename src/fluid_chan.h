@@ -34,10 +34,7 @@
  * channum
  * synth
  *
- * Protected by mutex:
- * sfontnum
- * banknum
- * prognum
+ * Synthesis thread context only:
  * preset
  * key_pressure
  * tuning
@@ -47,12 +44,12 @@
  * gen_abs[]
  *
  * Uses atomic operations:
+ * sfont_bank_prog
  * channel_pressure
  * pitch_bend
  * pitch_wheel_sensitivity
  * cc[]
  * interp_method
- * 
  */
 struct _fluid_channel_t
 {
@@ -61,9 +58,7 @@ struct _fluid_channel_t
   fluid_synth_t* synth;                 /**> Parent synthesizer instance */
   int channum;                          /**> MIDI channel number */
 
-  int sfontnum;                         /**> Current SoundFont ID of selected preset */
-  int banknum;                          /**> Current bank number of selected preset */
-  int prognum;                          /**> Current program number of selected preset */
+  int sfont_bank_prog;                  /**> SoundFont ID (bit 21-31), bank (bit 7-20), program (bit 0-6) */
   fluid_preset_t* preset;               /**> Selected preset */
 
   int key_pressure;                     /**> MIDI key pressure */
@@ -105,15 +100,10 @@ int delete_fluid_channel(fluid_channel_t* chan);
 void fluid_channel_reset(fluid_channel_t* chan);
 int fluid_channel_set_preset(fluid_channel_t* chan, fluid_preset_t* preset);
 fluid_preset_t* fluid_channel_get_preset(fluid_channel_t* chan);
-void fluid_channel_set_sfontnum(fluid_channel_t* chan, int sfont);
-int fluid_channel_get_sfontnum(fluid_channel_t* chan);
-void fluid_channel_set_banknum(fluid_channel_t* chan, int bank);
-int fluid_channel_get_banknum(fluid_channel_t* chan);
-void fluid_channel_set_prognum(fluid_channel_t* chan, int prognum);
-int fluid_channel_get_prognum(fluid_channel_t* chan);
-int fluid_channel_pressure(fluid_channel_t* chan, int val);
-int fluid_channel_pitch_bend(fluid_channel_t* chan, int val);
-int fluid_channel_pitch_wheel_sens(fluid_channel_t* chan, int val);
+void fluid_channel_set_sfont_bank_prog(fluid_channel_t* chan, int sfont,
+                                       int bank, int prog);
+void fluid_channel_get_sfont_bank_prog(fluid_channel_t* chan, int *sfont,
+                                       int *bank, int *prog);
 void fluid_channel_set_cc(fluid_channel_t* chan, int num, int val);
 int fluid_channel_get_cc(fluid_channel_t* chan, int num);
 int fluid_channel_get_num(fluid_channel_t* chan);

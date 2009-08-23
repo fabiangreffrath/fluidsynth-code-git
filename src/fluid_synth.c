@@ -68,6 +68,10 @@ static int fluid_synth_channel_pressure_LOCAL(fluid_synth_t* synth, int channum,
 static int fluid_synth_pitch_bend_LOCAL(fluid_synth_t* synth, int chan, int val);
 static int fluid_synth_pitch_wheel_sens_LOCAL(fluid_synth_t* synth, int chan,
                                               int val);
+static int fluid_synth_set_preset (fluid_synth_t *synth, int chan,
+                                   fluid_preset_t *preset);
+static int fluid_synth_set_preset_LOCAL (fluid_synth_t *synth, int chan,
+                                         fluid_preset_t *preset);
 static fluid_preset_t*
 fluid_synth_get_preset(fluid_synth_t* synth, unsigned int sfontnum,
                        unsigned int banknum, unsigned int prognum);
@@ -1089,7 +1093,7 @@ fluid_synth_noteon(fluid_synth_t* synth, int chan, int key, int vel)
   else return fluid_synth_noteon_LOCAL (synth, chan, key, vel);
 }
 
-/* Local synthesis thread varient of fluid_synth_noteon */
+/* Local synthesis thread variant of fluid_synth_noteon */
 static int
 fluid_synth_noteon_LOCAL(fluid_synth_t* synth, int chan, int key, int vel)
 {
@@ -1141,7 +1145,7 @@ fluid_synth_noteoff(fluid_synth_t* synth, int chan, int key)
   else return fluid_synth_noteoff_LOCAL (synth, chan, key);
 }
 
-/* Local synthesis thread varient of fluid_synth_noteoff */
+/* Local synthesis thread variant of fluid_synth_noteoff */
 static int
 fluid_synth_noteoff_LOCAL(fluid_synth_t* synth, int chan, int key)
 {
@@ -1231,16 +1235,14 @@ fluid_synth_cc_LOCAL(fluid_synth_t* synth, int channum, int num, int value)
     if (value < 64) fluid_synth_damp_voices_LOCAL (synth, channum);
     break;
   case BANK_SELECT_MSB:
-    banknum = (((unsigned int)value & 0x7F) << 7)
-      + (fluid_channel_get_banknum (chan) & 0x7F);
-
-    fluid_channel_set_banknum (chan, banknum);
+    fluid_channel_get_sfont_bank_prog (chan, NULL, &banknum, NULL);
+    banknum = (((unsigned int)value & 0x7F) << 7) + (banknum & 0x7F);
+    fluid_channel_set_sfont_bank_prog (chan, -1, banknum, -1);
     break;
   case BANK_SELECT_LSB:
-    banknum = ((unsigned int)value & 0x7F)
-      + (fluid_channel_get_banknum (chan) & ~0x7F);
-
-    fluid_channel_set_banknum (chan, banknum);
+    fluid_channel_get_sfont_bank_prog (chan, NULL, &banknum, NULL);
+    banknum = ((unsigned int)value & 0x7F) + (banknum & ~0x7F);
+    fluid_channel_set_sfont_bank_prog (chan, -1, banknum, -1);
     break;
   case ALL_NOTES_OFF:
     fluid_synth_all_notes_off_LOCAL (synth, channum);
@@ -1368,7 +1370,7 @@ fluid_synth_all_notes_off(fluid_synth_t* synth, int chan)
   else return fluid_synth_all_notes_off_LOCAL (synth, chan);
 }
 
-/* Local synthesis thread varient of all notes off */
+/* Local synthesis thread variant of all notes off */
 static int
 fluid_synth_all_notes_off_LOCAL(fluid_synth_t* synth, int chan)
 {
@@ -1402,7 +1404,7 @@ fluid_synth_all_sounds_off(fluid_synth_t* synth, int chan)
   else return fluid_synth_all_sounds_off_LOCAL (synth, chan);
 }
 
-/* Local synthesis thread varient of all sounds off */
+/* Local synthesis thread variant of all sounds off */
 static int
 fluid_synth_all_sounds_off_LOCAL(fluid_synth_t* synth, int chan)
 {
@@ -1434,7 +1436,7 @@ fluid_synth_system_reset(fluid_synth_t* synth)
   else return fluid_synth_system_reset_LOCAL (synth);
 }
 
-/* LOCAL varient of the system reset command */
+/* Local variant of the system reset command */
 static int
 fluid_synth_system_reset_LOCAL(fluid_synth_t* synth)
 {
@@ -1522,7 +1524,7 @@ fluid_synth_channel_pressure(fluid_synth_t* synth, int chan, int val)
   else return fluid_synth_channel_pressure_LOCAL (synth, chan, val);
 }
 
-/* Local synthesis thread varient of channel pressure set */
+/* Local synthesis thread variant of channel pressure set */
 static int
 fluid_synth_channel_pressure_LOCAL(fluid_synth_t* synth, int chan, int val)
 {
@@ -1552,7 +1554,7 @@ fluid_synth_pitch_bend(fluid_synth_t* synth, int chan, int val)
   else return fluid_synth_pitch_bend_LOCAL (synth, chan, val);
 }
 
-/* Local synthesis thread varient of pitch bend */
+/* Local synthesis thread variant of pitch bend */
 static int
 fluid_synth_pitch_bend_LOCAL(fluid_synth_t* synth, int chan, int val)
 {
@@ -1602,7 +1604,7 @@ fluid_synth_pitch_wheel_sens(fluid_synth_t* synth, int chan, int val)
   else return fluid_synth_pitch_wheel_sens_LOCAL (synth, chan, val);
 }
 
-/* Local synthesis thread varient of set pitch wheel sensitivity */
+/* Local synthesis thread variant of set pitch wheel sensitivity */
 static int
 fluid_synth_pitch_wheel_sens_LOCAL(fluid_synth_t* synth, int chan, int val)
 {
@@ -1632,11 +1634,58 @@ fluid_synth_get_pitch_wheel_sens(fluid_synth_t* synth, int chan, int* pval)
   return FLUID_OK;
 }
 
+/**
+ * Assign a preset to a MIDI channel.
+ * @param synth FluidSynth instance
+ * @param chan MIDI channel number (0 to MIDI channel count - 1)
+ * @param preset Preset to assign to channel (ownership is taken over)
+ * @return FLUID_OK on success, FLUID_FAILED otherwise
+ */
+static int
+fluid_synth_set_preset (fluid_synth_t *synth, int chan, fluid_preset_t *preset)
+{
+  fluid_event_queue_t *queue;
+  fluid_event_queue_elem_t *event;
+
+  fluid_return_val_if_fail (synth != NULL, FLUID_FAILED);
+  fluid_return_val_if_fail (chan >= 0 && chan < synth->midi_channels, FLUID_FAILED);
+  fluid_return_val_if_fail (preset != NULL, FLUID_FAILED);
+
+  if (fluid_synth_should_queue (synth))
+  {
+    queue = fluid_synth_get_event_queue (synth);
+    if (!queue) return FLUID_FAILED;
+
+    event = fluid_event_queue_get_inptr (queue);
+
+    event->type = FLUID_EVENT_QUEUE_ELEM_PRESET;
+    event->preset.channel = chan;
+    event->preset.preset = preset;
+
+    fluid_event_queue_next_inptr (queue);
+    return FLUID_OK;
+  }
+  else return fluid_synth_set_preset_LOCAL (synth, chan, preset);
+}
+
+/* Local synthesis thread variant of set channel preset */
+static int
+fluid_synth_set_preset_LOCAL (fluid_synth_t *synth, int chan,
+                              fluid_preset_t *preset)
+{
+  fluid_channel_t *channel;
+
+  channel = synth->channel[chan];
+  fluid_channel_set_preset (channel, preset);
+  return FLUID_OK;
+}
+
 /* Get a preset by SoundFont, bank and program numbers.
  * Returns preset pointer or NULL.
  *
  * NOTE: The returned preset has been allocated, caller owns it and should
- *       free it when finished using it. */
+ *       free it when finished using it.
+ */
 static fluid_preset_t*
 fluid_synth_get_preset(fluid_synth_t* synth, unsigned int sfontnum,
                        unsigned int banknum, unsigned int prognum)
@@ -1705,10 +1754,7 @@ fluid_synth_program_change(fluid_synth_t* synth, int chan, int prognum)
   fluid_return_val_if_fail (prognum >= 0 && prognum <= FLUID_NUM_PROGRAMS, FLUID_FAILED);
 
   channel = synth->channel[chan];
-  banknum = fluid_channel_get_banknum(channel);
-
-  /* inform the channel of the new program number */
-  fluid_channel_set_prognum(channel, prognum);
+  fluid_channel_get_sfont_bank_prog(channel, NULL, &banknum, NULL);
 
   if (synth->verbose)
     FLUID_LOG(FLUID_INFO, "prog\t%d\t%d\t%d", chan, banknum, prognum);
@@ -1756,11 +1802,10 @@ fluid_synth_program_change(fluid_synth_t* synth, int chan, int prognum)
 		chan, banknum, prognum, subst_bank, subst_prog); 
   }
 
-  fluid_channel_set_sfontnum (channel,
-                              preset ? fluid_sfont_get_id (preset->sfont) : 0);
-  fluid_channel_set_preset (channel, preset);
-
-  return FLUID_OK;
+  /* Assign the SoundFont ID and program number to the channel */
+  fluid_channel_set_sfont_bank_prog (channel, preset ? fluid_sfont_get_id (preset->sfont) : 0,
+                                     -1, prognum);
+  return fluid_synth_set_preset (synth, chan, preset);
 }
 
 /**
@@ -1776,7 +1821,7 @@ fluid_synth_bank_select(fluid_synth_t* synth, int chan, unsigned int bank)
   fluid_return_val_if_fail (synth != NULL, FLUID_FAILED);
   fluid_return_val_if_fail (chan >= 0 && chan < synth->midi_channels, FLUID_FAILED);
 
-  fluid_channel_set_banknum(synth->channel[chan], bank);
+  fluid_channel_set_sfont_bank_prog(synth->channel[chan], -1, bank, -1);
   return FLUID_OK;
 }
 
@@ -1793,7 +1838,7 @@ fluid_synth_sfont_select(fluid_synth_t* synth, int chan, unsigned int sfont_id)
   fluid_return_val_if_fail (synth != NULL, FLUID_FAILED);
   fluid_return_val_if_fail (chan >= 0 && chan < synth->midi_channels, FLUID_FAILED);
 
-  fluid_channel_set_sfontnum(synth->channel[chan], sfont_id);
+  fluid_channel_set_sfont_bank_prog(synth->channel[chan], sfont_id, -1, -1);
   return FLUID_OK;
 }
 
@@ -1819,10 +1864,8 @@ fluid_synth_get_program(fluid_synth_t* synth, int chan, unsigned int* sfont_id,
   fluid_return_val_if_fail (preset_num != NULL, FLUID_FAILED);
 
   channel = synth->channel[chan];
-  *sfont_id = fluid_channel_get_sfontnum(channel);
-  *bank_num = fluid_channel_get_banknum(channel);
-  *preset_num = fluid_channel_get_prognum(channel);
-
+  fluid_channel_get_sfont_bank_prog(channel, (int *)sfont_id, (int *)bank_num,
+                                    (int *)preset_num);
   return FLUID_OK;
 }
 
@@ -1857,14 +1900,9 @@ fluid_synth_program_select(fluid_synth_t* synth, int chan, unsigned int sfont_id
     return FLUID_FAILED;
   }
 
-  /* inform the channel of the new bank and program number */
-  fluid_channel_set_sfontnum(channel, sfont_id);
-  fluid_channel_set_banknum(channel, bank_num);
-  fluid_channel_set_prognum(channel, preset_num);
-
-  fluid_channel_set_preset(channel, preset);    /* !! Takes over preset allocation */
-
-  return FLUID_OK;
+  /* Assign the new SoundFont ID, bank and program number to the channel */
+  fluid_channel_set_sfont_bank_prog (channel, sfont_id, bank_num, preset_num);
+  return fluid_synth_set_preset (synth, chan, preset);
 }
 
 /**
@@ -1908,14 +1946,10 @@ fluid_synth_program_select2(fluid_synth_t* synth, int chan, char* sfont_name,
     return FLUID_FAILED;
   }
 
-  /* inform the channel of the new bank and program number */
-  fluid_channel_set_sfontnum(channel, fluid_sfont_get_id(sfont));
-  fluid_channel_set_banknum(channel, bank_num);
-  fluid_channel_set_prognum(channel, preset_num);
-
-  fluid_channel_set_preset(channel, preset);
-
-  return FLUID_OK;
+  /* Assign the new SoundFont ID, bank and program number to the channel */
+  fluid_channel_set_sfont_bank_prog (channel, fluid_sfont_get_id(sfont),
+                                     bank_num, preset_num);
+  return fluid_synth_set_preset (synth, chan, preset);
 }
 
 /*
@@ -1926,23 +1960,20 @@ fluid_synth_program_select2(fluid_synth_t* synth, int chan, char* sfont_name,
 static void
 fluid_synth_update_presets(fluid_synth_t* synth)
 {
+  fluid_channel_t *channel;
+  fluid_preset_t *preset;
+  int sfont, bank, prog;
   int chan;
-  fluid_channel_t* channel;
 
   for (chan = 0; chan < synth->midi_channels; chan++) {
     channel = synth->channel[chan];
-    fluid_channel_set_preset(channel,
-			    fluid_synth_get_preset(synth,
-						  fluid_channel_get_sfontnum(channel),
-						  fluid_channel_get_banknum(channel),
-						  fluid_channel_get_prognum(channel)));
+    fluid_channel_get_sfont_bank_prog (channel, &sfont, &bank, &prog);
+    preset = fluid_synth_get_preset(synth, sfont, bank, prog);
+    fluid_synth_set_preset(synth, chan, preset);
   }
 }
 
-
-/*
- * Handler for synth.gain setting.
- */
+/* Handler for synth.gain setting. */
 static int
 fluid_synth_update_gain(fluid_synth_t* synth, char* name, double value)
 {
@@ -2093,10 +2124,12 @@ fluid_synth_get_internal_bufsize(fluid_synth_t* synth)
 int
 fluid_synth_program_reset(fluid_synth_t* synth)
 {
-  int i;
+  int i, prog;
+
   /* try to set the correct presets */
   for (i = 0; i < synth->midi_channels; i++){
-    fluid_synth_program_change(synth, i, fluid_channel_get_prognum(synth->channel[i]));
+    fluid_channel_get_sfont_bank_prog (synth->channel[i], NULL, NULL, &prog);
+    fluid_synth_program_change(synth, i, prog);
   }
   return FLUID_OK;
 }
@@ -2707,15 +2740,15 @@ fluid_synth_process_event_queue_LOCAL (fluid_synth_t *synth,
     else if (event->type == FLUID_EVENT_QUEUE_ELEM_GEN)
       fluid_synth_set_gen_LOCAL (synth, event->gen.channel, event->gen.param,
                                  event->gen.value, event->gen.absolute);
+    else if (event->type == FLUID_EVENT_QUEUE_ELEM_PRESET)
+      fluid_synth_set_preset_LOCAL (synth, event->preset.channel,
+                                    event->preset.preset);
 
     fluid_event_queue_next_outptr (queue);
   }
 }
 
-/*
- * Selects a voice for killing.  The selection algorithm is a refinement
- * of the algorithm previously in fluid_synth_alloc_voice.
- */
+/* Selects a voice for killing. */
 static fluid_voice_t*
 fluid_synth_free_voice_by_kill_LOCAL(fluid_synth_t* synth)
 {
@@ -2880,65 +2913,34 @@ fluid_synth_alloc_voice(fluid_synth_t* synth, fluid_sample_t* sample, int chan, 
   return voice;
 }
 
-/* Kill all voices on a given channel, which belong into
- * excl_class.  This function is called by a SoundFont's preset in
- * response to a noteon event.  If one noteon event results in
- * several voice processes (stereo samples), ignore_ID must name
- * the voice ID of the first generated voice (so that it is not
- * stopped). The first voice uses ignore_ID=-1, which will
- * terminate all voices on a channel belonging into the exclusive
- * class excl_class.
+/* Kill all voices on a given channel, which have the same exclusive class
+ * generator as new_voice.
  */
 static void
 fluid_synth_kill_by_exclusive_class_LOCAL(fluid_synth_t* synth,
                                           fluid_voice_t* new_voice)
 {
-  int i;
   int excl_class = _GEN(new_voice,GEN_EXCLUSIVECLASS);
-
-  /* Check if the voice belongs to an exclusive class. In that case,
-     previous notes from the same class are released. */
+  fluid_voice_t* existing_voice;
+  int i;
 
   /* Excl. class 0: No exclusive class */
-  if (excl_class == 0) {
-    return;
-  }
+  if (excl_class == 0) return;
 
-  //  FLUID_LOG(FLUID_INFO, "Voice belongs to exclusive class (class=%d, ignore_id=%d)", excl_class, ignore_ID);
-
-    /* Kill all notes on the same channel with the same exclusive class */
-
+  /* Kill all notes on the same channel with the same exclusive class */
   for (i = 0; i < synth->polyphony; i++) {
-    fluid_voice_t* existing_voice = synth->voice[i];
+    existing_voice = synth->voice[i];
 
-    /* Existing voice does not play? Leave it alone. */
-    if (!_PLAYING(existing_voice)) {
-      continue;
-    }
+    /* If voice is playing, on the same channel, has same exclusive
+     * class and is not part of the same noteon event (voice group), then kill it */
 
-    /* An exclusive class is valid for a whole channel (or preset).
-     * Is the voice on a different channel? Leave it alone. */
-    if (existing_voice->chan != new_voice->chan) {
-      continue;
-    }
-
-    /* Existing voice has a different (or no) exclusive class? Leave it alone. */
-    if ((int)_GEN(existing_voice, GEN_EXCLUSIVECLASS) != excl_class) {
-      continue;
-    }
-
-    /* Existing voice is a voice process belonging to this noteon
-     * event (for example: stereo sample)?  Leave it alone. */
-    if (fluid_voice_get_id(existing_voice) == fluid_voice_get_id(new_voice)) {
-      continue;
-    }
-
-    //    FLUID_LOG(FLUID_INFO, "Releasing previous voice of exclusive class (class=%d, id=%d)",
-    //     (int)_GEN(existing_voice, GEN_EXCLUSIVECLASS), (int)fluid_voice_get_id(existing_voice));
-
-    fluid_voice_kill_excl(existing_voice);
-  };
-};
+    if (_PLAYING(existing_voice)
+        && existing_voice->chan == new_voice->chan
+        && (int)_GEN (existing_voice, GEN_EXCLUSIVECLASS) == excl_class
+        && fluid_voice_get_id (existing_voice) != fluid_voice_get_id(new_voice))
+      fluid_voice_kill_excl(existing_voice);
+  }
+}
 
 /**
  * Activate a voice previously allocated with fluid_synth_alloc_voice().
@@ -2963,9 +2965,7 @@ fluid_synth_start_voice(fluid_synth_t* synth, fluid_voice_t* voice)
    * voice process created by this noteon event. */
   fluid_synth_kill_by_exclusive_class_LOCAL(synth, voice);
 
-  /* Start the new voice */
-
-  fluid_voice_start(voice);
+  fluid_voice_start(voice);     /* Start the new voice */
 }
 
 /**
@@ -3325,20 +3325,17 @@ fluid_synth_get_sfont_by_name(fluid_synth_t* synth, char *name)
  * @param synth FluidSynth instance
  * @param chan MIDI channel number (0 to MIDI channel count - 1)
  * @return Preset or NULL if no preset active on channel
+ *
+ * NOTE: Should only be called from within synthesis thread, which includes
+ * SoundFont loader preset noteon methods.
  */
-/* FIXME MT - Not thread safe!  Possible solution is to use a unique ID as the
- * pointer and a hash table to look up the real instance */
 fluid_preset_t *
 fluid_synth_get_channel_preset(fluid_synth_t* synth, int chan)
 {
   fluid_return_val_if_fail (synth != NULL, NULL);
   fluid_return_val_if_fail (chan >= 0 && chan < synth->midi_channels, NULL);
 
-  if ((chan >= 0) && (chan < synth->midi_channels)) {
-    return fluid_channel_get_preset(synth->channel[chan]);
-  }
-
-  return NULL;
+  return fluid_channel_get_preset(synth->channel[chan]);
 }
 
 /**
