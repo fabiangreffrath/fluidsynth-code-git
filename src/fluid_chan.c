@@ -31,6 +31,8 @@
 /* Field mask values for sfont_bank_prog bit field integer */
 #define PROG_MASKVAL    0x0000007F
 #define BANK_MASKVAL    0x001FFF80
+#define BANKLSB_MASKVAL 0x00003F80
+#define BANKMSB_MASKVAL 0x001FC000
 #define SFONT_MASKVAL   0xFFE00000
 
 
@@ -191,33 +193,64 @@ fluid_channel_get_preset(fluid_channel_t* chan)
   return chan->preset;
 }
 
-/*
- * Set SoundFont ID, MIDI bank and/or program.  Use -1 to use current value.
- */
+/* Set SoundFont ID, MIDI bank and/or program.  Use -1 to use current value. */
 void
 fluid_channel_set_sfont_bank_prog(fluid_channel_t* chan, int sfontnum,
                                   int banknum, int prognum)
 {
-  int sfont_bank_prog, newval;
+  int oldval, newval, oldmask;
+
+  newval = ((sfontnum != -1) ? sfontnum << SFONT_SHIFTVAL : 0)
+    | ((banknum != -1) ? banknum << BANK_SHIFTVAL : 0)
+    | ((prognum != -1) ? prognum << PROG_SHIFTVAL : 0);
+
+  oldmask = ((sfontnum != -1) ? 0 : SFONT_MASKVAL)
+    | ((banknum != -1) ? 0 : BANK_MASKVAL)
+    | ((prognum != -1) ? 0 : PROG_MASKVAL);
 
   /* Loop until SoundFont, bank and program integer is atomically assigned */
   do
   {
-    sfont_bank_prog = fluid_atomic_int_get (&chan->sfont_bank_prog);
-    newval = sfont_bank_prog;
-
-    if (sfontnum != -1)
-      newval = (newval & ~SFONT_MASKVAL) | (sfontnum << SFONT_SHIFTVAL);
-
-    if (banknum != -1)
-      newval = (newval & ~BANK_MASKVAL) | (banknum << BANK_SHIFTVAL);
-
-    if (prognum != -1)
-      newval = (newval & ~PROG_MASKVAL) | (prognum << PROG_SHIFTVAL);
+    oldval = fluid_atomic_int_get (&chan->sfont_bank_prog);
+    newval = (newval & ~oldmask) | (oldval & oldmask);
   }
-  while (newval != sfont_bank_prog
+  while (newval != oldval
          && !fluid_atomic_int_compare_and_exchange (&chan->sfont_bank_prog,
-                                                    sfont_bank_prog, newval));
+                                                    oldval, newval));
+}
+
+/* Set bank LSB 7 bits */
+void
+fluid_channel_set_bank_lsb(fluid_channel_t* chan, int banklsb)
+{
+  int oldval, newval;
+
+  /* Loop until bank LSB is atomically assigned */
+  do
+  {
+    oldval = fluid_atomic_int_get (&chan->sfont_bank_prog);
+    newval = (oldval & ~BANKLSB_MASKVAL) | (banklsb << BANK_SHIFTVAL);
+  }
+  while (newval != oldval
+         && !fluid_atomic_int_compare_and_exchange (&chan->sfont_bank_prog,
+                                                    oldval, newval));
+}
+
+/* Set bank MSB 7 bits */
+void
+fluid_channel_set_bank_msb(fluid_channel_t* chan, int bankmsb)
+{
+  int oldval, newval;
+
+  /* Loop until bank MSB is atomically assigned */
+  do
+  {
+    oldval = fluid_atomic_int_get (&chan->sfont_bank_prog);
+    newval = (oldval & ~BANKMSB_MASKVAL) | (bankmsb << (BANK_SHIFTVAL + 7));
+  }
+  while (newval != oldval
+         && !fluid_atomic_int_compare_and_exchange (&chan->sfont_bank_prog,
+                                                    oldval, newval));
 }
 
 /* Get SoundFont ID, MIDI bank and/or program.  Use NULL to ignore a value. */

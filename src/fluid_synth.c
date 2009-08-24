@@ -75,6 +75,10 @@ static int fluid_synth_set_preset_LOCAL (fluid_synth_t *synth, int chan,
 static fluid_preset_t*
 fluid_synth_get_preset(fluid_synth_t* synth, unsigned int sfontnum,
                        unsigned int banknum, unsigned int prognum);
+static fluid_preset_t*
+fluid_synth_get_preset_by_sfont_name(fluid_synth_t* synth, const char *sfontname,
+                                     unsigned int banknum, unsigned int prognum);
+
 static void fluid_synth_update_presets(fluid_synth_t* synth);
 static int fluid_synth_update_gain(fluid_synth_t* synth,
                                    char* name, double value);
@@ -97,7 +101,7 @@ static fluid_tuning_t* fluid_synth_get_tuning(fluid_synth_t* synth,
                                               int bank, int prog);
 static fluid_tuning_t* fluid_synth_create_tuning(fluid_synth_t* synth, int bank,
                                                  int prog, char* name);
-static fluid_bank_offset_t* fluid_synth_get_bank_offset0_LOCKED
+static fluid_bank_offset_t* fluid_synth_get_bank_offset_LOCKED
 (fluid_synth_t* synth, int sfont_id);
 static void fluid_synth_set_gen_LOCAL (fluid_synth_t* synth, int chan,
                                        int param, float value, int absolute);
@@ -1211,14 +1215,17 @@ fluid_synth_cc(fluid_synth_t* synth, int chan, int num, int val)
   fluid_return_val_if_fail (num >= 0 && num <= 127, FLUID_FAILED);
   fluid_return_val_if_fail (val >= 0 && val <= 127, FLUID_FAILED);
 
-  if (fluid_synth_should_queue (synth))
+  /* Process bank MSB/LSB events immediately to prevent out of order issues with program change */
+  if (fluid_synth_should_queue (synth) && num != BANK_SELECT_MSB && num != BANK_SELECT_LSB)
     return fluid_synth_queue_midi_event (synth, CONTROL_CHANGE, chan, num, val);
-  else fluid_synth_cc_LOCAL (synth, chan, num, val);
+  else return fluid_synth_cc_LOCAL (synth, chan, num, val);
 
   return FLUID_OK;
 }
 
-/* Local synthesis thread variant of MIDI CC set function */
+/* Local synthesis thread variant of MIDI CC set function.
+ * NOTE: Gets called out of synthesis context for BANK_SELECT_MSB and
+ * BANK_SELECT_LSB events, since they should be processed immediately. */
 static int
 fluid_synth_cc_LOCAL(fluid_synth_t* synth, int channum, int num, int value)
 {
@@ -1235,14 +1242,10 @@ fluid_synth_cc_LOCAL(fluid_synth_t* synth, int channum, int num, int value)
     if (value < 64) fluid_synth_damp_voices_LOCAL (synth, channum);
     break;
   case BANK_SELECT_MSB:
-    fluid_channel_get_sfont_bank_prog (chan, NULL, &banknum, NULL);
-    banknum = (((unsigned int)value & 0x7F) << 7) + (banknum & 0x7F);
-    fluid_channel_set_sfont_bank_prog (chan, -1, banknum, -1);
+    fluid_channel_set_bank_msb (chan, value & 0x7F);
     break;
   case BANK_SELECT_LSB:
-    fluid_channel_get_sfont_bank_prog (chan, NULL, &banknum, NULL);
-    banknum = ((unsigned int)value & 0x7F) + (banknum & ~0x7F);
-    fluid_channel_set_sfont_bank_prog (chan, -1, banknum, -1);
+    fluid_channel_set_bank_lsb (chan, value & 0x7F);
     break;
   case ALL_NOTES_OFF:
     fluid_synth_all_notes_off_LOCAL (synth, channum);
@@ -1690,19 +1693,64 @@ static fluid_preset_t*
 fluid_synth_get_preset(fluid_synth_t* synth, unsigned int sfontnum,
                        unsigned int banknum, unsigned int prognum)
 {
-  fluid_preset_t* preset = NULL;
-  fluid_sfont_t* sfont = NULL;
-  fluid_list_t* list = synth->sfont;
-  int offset;
+  fluid_bank_offset_t *bank_offset;
+  fluid_preset_t *preset = NULL;
+  fluid_sfont_t* sfont;
+  fluid_list_t *list;
+  int ofs;
 
-  sfont = fluid_synth_get_sfont_by_id(synth, sfontnum);
+  fluid_mutex_lock (synth->mutex);      /* ++ lock sfont list, bank offset list and sfont */
 
-  if (sfont != NULL) {
-    offset = fluid_synth_get_bank_offset(synth, sfontnum);
-    preset = fluid_sfont_get_preset(sfont, banknum - offset, prognum);
-    return preset;
+  for (list = synth->sfont; list; list = fluid_list_next (list)) {
+    sfont = (fluid_sfont_t *) fluid_list_get (list);
+
+    if (fluid_sfont_get_id (sfont) == sfontnum)
+    {
+      bank_offset = fluid_synth_get_bank_offset_LOCKED (synth, sfontnum);
+      ofs = bank_offset ? bank_offset->offset : 0;
+      preset = fluid_sfont_get_preset (sfont, banknum - ofs, prognum);
+      break;
+    }
   }
-  return NULL;
+
+  fluid_mutex_unlock (synth->mutex);      /* -- unlock */
+
+  return preset;
+}
+
+/* Get a preset by SoundFont name, bank and program.
+ * Returns preset pointer or NULL.
+ *
+ * NOTE: The returned preset has been allocated, caller owns it and should
+ *       free it when finished using it.
+ */
+static fluid_preset_t*
+fluid_synth_get_preset_by_sfont_name(fluid_synth_t* synth, const char *sfontname,
+                                     unsigned int banknum, unsigned int prognum)
+{
+  fluid_bank_offset_t *bank_offset;
+  fluid_preset_t *preset = NULL;
+  fluid_sfont_t *sfont;
+  fluid_list_t *list;
+  int ofs;
+
+  fluid_mutex_lock (synth->mutex);      /* ++ lock sfont list, bank offset list and sfont */
+
+  for (list = synth->sfont; list; list = fluid_list_next (list)) {
+    sfont = (fluid_sfont_t *) fluid_list_get (list);
+
+    if (FLUID_STRCMP (fluid_sfont_get_name (sfont), sfontname) == 0)
+    {
+      bank_offset = fluid_synth_get_bank_offset_LOCKED (synth, fluid_sfont_get_id (sfont));
+      ofs = bank_offset ? bank_offset->offset : 0;
+      preset = fluid_sfont_get_preset (sfont, banknum - ofs, prognum);
+      break;
+    }
+  }
+
+  fluid_mutex_unlock (synth->mutex);      /* -- unlock */
+
+  return preset;
 }
 
 /* Find a preset by bank and program numbers.
@@ -1714,25 +1762,26 @@ fluid_preset_t*
 fluid_synth_find_preset(fluid_synth_t* synth, unsigned int banknum,
                         unsigned int prognum)
 {
-  fluid_preset_t* preset = NULL;
-  fluid_sfont_t* sfont = NULL;
-  fluid_list_t* list = synth->sfont;
-  int offset;
+  fluid_bank_offset_t *bank_offset;
+  fluid_preset_t *preset = NULL;
+  fluid_sfont_t *sfont;
+  fluid_list_t *list;
+  int ofs;
 
-  while (list) {
-    sfont = (fluid_sfont_t*) fluid_list_get(list);
-    offset = fluid_synth_get_bank_offset(synth, fluid_sfont_get_id(sfont));
-    preset = fluid_sfont_get_preset(sfont, banknum - offset, prognum);
+  fluid_mutex_lock (synth->mutex);      /* ++ lock sfont list, bank offset list and sfont */
 
-    if (preset != NULL) {
-      preset->sfont = sfont; /* FIXME */
-      return preset;
-    }
+  for (list = synth->sfont; list; list = fluid_list_next (list)) {
+    sfont = (fluid_sfont_t *) fluid_list_get (list);
 
-    list = fluid_list_next(list);
+    bank_offset = fluid_synth_get_bank_offset_LOCKED (synth, fluid_sfont_get_id (sfont));
+    ofs = bank_offset ? bank_offset->offset : 0;
+    preset = fluid_sfont_get_preset (sfont, banknum - ofs, prognum);
+    if (preset) break;
   }
 
-  return NULL;
+  fluid_mutex_unlock (synth->mutex);      /* -- unlock */
+
+  return preset;
 }
 
 /**
@@ -1891,7 +1940,7 @@ fluid_synth_program_select(fluid_synth_t* synth, int chan, unsigned int sfont_id
   channel = synth->channel[chan];
 
   /* ++ Allocate preset */
-  preset = fluid_synth_get_preset(synth, sfont_id, bank_num, preset_num);
+  preset = fluid_synth_get_preset (synth, sfont_id, bank_num, preset_num);
 
   if (preset == NULL) {
     FLUID_LOG(FLUID_ERR,
@@ -1929,16 +1978,9 @@ fluid_synth_program_select2(fluid_synth_t* synth, int chan, char* sfont_name,
 
   channel = synth->channel[chan];
 
-  sfont = fluid_synth_get_sfont_by_name(synth, sfont_name);
-
-  if (sfont == NULL) {
-    FLUID_LOG(FLUID_ERR, "Could not find SoundFont %s", sfont_name);
-    return FLUID_FAILED;
-  }
-
-  offset = fluid_synth_get_bank_offset(synth, fluid_sfont_get_id(sfont));
-  preset = fluid_sfont_get_preset(sfont, bank_num - offset, preset_num);
-
+  /* ++ Allocate preset */
+  preset = fluid_synth_get_preset_by_sfont_name (synth, sfont_name, bank_num,
+                                                 preset_num);
   if (preset == NULL) {
     FLUID_LOG(FLUID_ERR,
 	      "There is no preset with bank number %d and preset number %d in SoundFont %s",
@@ -1947,13 +1989,13 @@ fluid_synth_program_select2(fluid_synth_t* synth, int chan, char* sfont_name,
   }
 
   /* Assign the new SoundFont ID, bank and program number to the channel */
-  fluid_channel_set_sfont_bank_prog (channel, fluid_sfont_get_id(sfont),
+  fluid_channel_set_sfont_bank_prog (channel, fluid_sfont_get_id (preset->sfont),
                                      bank_num, preset_num);
   return fluid_synth_set_preset (synth, chan, preset);
 }
 
 /*
- * This function assures that every MIDI channels has a valid preset
+ * This function assures that every MIDI channel has a valid preset
  * (NULL is okay). This function is called after a SoundFont is
  * unloaded or reloaded.
  */
@@ -1968,8 +2010,8 @@ fluid_synth_update_presets(fluid_synth_t* synth)
   for (chan = 0; chan < synth->midi_channels; chan++) {
     channel = synth->channel[chan];
     fluid_channel_get_sfont_bank_prog (channel, &sfont, &bank, &prog);
-    preset = fluid_synth_get_preset(synth, sfont, bank, prog);
-    fluid_synth_set_preset(synth, chan, preset);
+    preset = fluid_synth_get_preset (synth, sfont, bank, prog);
+    fluid_synth_set_preset (synth, chan, preset);
   }
 }
 
@@ -3207,7 +3249,7 @@ fluid_synth_remove_sfont(fluid_synth_t* synth, fluid_sfont_t* sfont)
   synth->sfont = fluid_list_remove(synth->sfont, sfont);
 
   /* remove a possible bank offset */
-  bank_offset = fluid_synth_get_bank_offset0_LOCKED (synth, sfont_id);
+  bank_offset = fluid_synth_get_bank_offset_LOCKED (synth, sfont_id);
 
   if (bank_offset != NULL)
     synth->bank_offsets = fluid_list_remove(synth->bank_offsets, bank_offset);
@@ -4216,7 +4258,7 @@ fluid_synth_stop(fluid_synth_t* synth, unsigned int id)
 /* Get bank offset structure for a given SoundFont ID.  Synth instance should be
  * locked by caller */
 static fluid_bank_offset_t*
-fluid_synth_get_bank_offset0_LOCKED(fluid_synth_t* synth, int sfont_id)
+fluid_synth_get_bank_offset_LOCKED(fluid_synth_t* synth, int sfont_id)
 {
   fluid_bank_offset_t* offset;
   fluid_list_t* list;
@@ -4245,7 +4287,7 @@ fluid_synth_set_bank_offset(fluid_synth_t* synth, int sfont_id, int offset)
 
   fluid_mutex_lock (synth->mutex);      /* ++ lock */
 
-  bank_offset = fluid_synth_get_bank_offset0_LOCKED (synth, sfont_id);
+  bank_offset = fluid_synth_get_bank_offset_LOCKED (synth, sfont_id);
 
   if (bank_offset == NULL) {
     bank_offset = FLUID_NEW(fluid_bank_offset_t);
@@ -4283,7 +4325,7 @@ fluid_synth_get_bank_offset(fluid_synth_t* synth, int sfont_id)
   fluid_return_val_if_fail (synth != NULL, 0);
 
   fluid_mutex_lock (synth->mutex);      /* ++ lock */
-  bank_offset = fluid_synth_get_bank_offset0_LOCKED (synth, sfont_id);
+  bank_offset = fluid_synth_get_bank_offset_LOCKED (synth, sfont_id);
   ofs = bank_offset ? bank_offset->offset : 0;
   fluid_mutex_unlock (synth->mutex);    /* -- unlock */
 

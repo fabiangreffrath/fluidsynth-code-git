@@ -102,6 +102,8 @@ int fluid_channel_set_preset(fluid_channel_t* chan, fluid_preset_t* preset);
 fluid_preset_t* fluid_channel_get_preset(fluid_channel_t* chan);
 void fluid_channel_set_sfont_bank_prog(fluid_channel_t* chan, int sfont,
                                        int bank, int prog);
+void fluid_channel_set_bank_lsb(fluid_channel_t* chan, int banklsb);
+void fluid_channel_set_bank_msb(fluid_channel_t* chan, int bankmsb);
 void fluid_channel_get_sfont_bank_prog(fluid_channel_t* chan, int *sfont,
                                        int *bank, int *prog);
 void fluid_channel_set_cc(fluid_channel_t* chan, int num, int val);
