@@ -193,6 +193,10 @@ fluid_winmidi_callback(HMIDIIN hmi, UINT wMsg, DWORD dwInstance, DWORD msg, DWOR
       event.channel = msg_chan(msg);
       event.param1 = msg_p1(msg);
       event.param2 = msg_p2(msg);
+      if(event.type==PITCH_BEND){
+        event.param1 = ((event.param2 & 0x7f) << 7) | (event.param1 & 0x7f);
+        event.param2 = 0;
+      }
       (*dev->driver.handler)(dev->driver.data, &event);
     }
     break;
