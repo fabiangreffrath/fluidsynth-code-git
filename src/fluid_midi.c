@@ -278,6 +278,10 @@ int fluid_midi_file_read_track(fluid_midi_file* mf, fluid_player_t* player, int 
 				}
 			}
 
+			/* Skip remaining track data, if any */
+			if (mf->trackpos < mf->tracklen)
+				fluid_midi_file_skip (mf, mf->tracklen - mf->trackpos);
+
 			fluid_player_add_track(player, track);
 
 		} else {
