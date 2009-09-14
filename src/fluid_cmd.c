@@ -1567,9 +1567,10 @@ void delete_fluid_cmd(fluid_cmd_t* cmd)
  * Command handler
  */
 
-void fluid_cmd_handler_delete(void* value, int type)
+static void
+fluid_cmd_handler_destroy_hash_value (void *value)
 {
-  delete_fluid_cmd((fluid_cmd_t*) value);
+  delete_fluid_cmd ((fluid_cmd_t *)value);
 }
 
 fluid_cmd_handler_t* new_fluid_cmd_handler(fluid_synth_t* synth)
@@ -1582,7 +1583,8 @@ fluid_cmd_handler_t* new_fluid_cmd_handler(fluid_synth_t* synth)
     "source filename            Load a file and parse every line as a command"
   };
 
-  handler = new_fluid_hashtable(fluid_cmd_handler_delete);
+  handler = new_fluid_hashtable_full (fluid_str_hash, fluid_str_equal,
+                                      NULL, fluid_cmd_handler_destroy_hash_value);
   if (handler == NULL) {
     return NULL;
   }
@@ -1603,13 +1605,13 @@ fluid_cmd_handler_t* new_fluid_cmd_handler(fluid_synth_t* synth)
 
 void delete_fluid_cmd_handler(fluid_cmd_handler_t* handler)
 {
-  delete_fluid_hashtable(handler);
+  delete_fluid_hashtable (handler);
 }
 
 int fluid_cmd_handler_register(fluid_cmd_handler_t* handler, fluid_cmd_t* cmd)
 {
   fluid_cmd_t* copy = fluid_cmd_copy(cmd);
-  fluid_hashtable_insert(handler, copy->name, copy, 0);
+  fluid_hashtable_insert(handler, copy->name, copy);
   return 0;
 }
 
@@ -1620,17 +1622,15 @@ int fluid_cmd_handler_unregister(fluid_cmd_handler_t* handler, char* cmd)
 
 int fluid_cmd_handler_handle(fluid_cmd_handler_t* handler, int ac, char** av, fluid_ostream_t out)
 {
-  void *vp;	/* use a void pointer to avoid GCC "type-punned pointer" warning */
   fluid_cmd_t* cmd;
 
-  if (fluid_hashtable_lookup(handler, av[0], &vp, NULL)
-      && ((fluid_cmd_t *)vp)->handler) {
-    cmd = vp;
+  cmd = fluid_hashtable_lookup(handler, av[0]);
+
+  if (cmd && cmd->handler)
     return (*cmd->handler)(cmd->data, ac - 1, av + 1, out);
-  } else {
-    fluid_ostream_printf(out, "unknown command: %s (try help)\n", av[0]);
-    return -1;
-  }
+
+  fluid_ostream_printf(out, "unknown command: %s (try help)\n", av[0]);
+  return -1;
 }
 
 

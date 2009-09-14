@@ -29,11 +29,12 @@
  */
 enum fluid_event_queue_elem
 {
-  FLUID_EVENT_QUEUE_ELEM_MIDI,          /**< Uses midi field of event value */
-  FLUID_EVENT_QUEUE_ELEM_GAIN,          /**< Uses dval field of event value */
-  FLUID_EVENT_QUEUE_ELEM_POLYPHONY,     /**< Uses ival field of event value */
-  FLUID_EVENT_QUEUE_ELEM_GEN,           /**< Uses gen field of event value */
-  FLUID_EVENT_QUEUE_ELEM_PRESET         /**< Uses preset field of event value */
+  FLUID_EVENT_QUEUE_ELEM_MIDI,          /**< MIDI event. Uses midi field of event value */
+  FLUID_EVENT_QUEUE_ELEM_GAIN,          /**< Synth gain event. Uses dval field of event value */
+  FLUID_EVENT_QUEUE_ELEM_POLYPHONY,     /**< Synth polyphony event. Uses ival field of event value */
+  FLUID_EVENT_QUEUE_ELEM_GEN,           /**< Generator event. Uses gen field of event value */
+  FLUID_EVENT_QUEUE_ELEM_PRESET,        /**< Preset set event. Uses preset field of event value */
+  FLUID_EVENT_QUEUE_ELEM_STOP_VOICES    /**< Stop voices event. Uses ival field of event value */
 };
 
 /**

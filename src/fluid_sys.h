@@ -59,6 +59,7 @@ void fluid_time_config(void);
 #define fluid_return_val_if_fail  g_return_val_if_fail
 #define fluid_return_if_fail      g_return_if_fail
 #define FLUID_INLINE              inline
+#define FLUID_POINTER_TO_UINT     GPOINTER_TO_UINT
 
 
 /*
@@ -123,11 +124,12 @@ int fluid_timer_stop(fluid_timer_t* timer);
 
 */
 
-typedef GStaticMutex fluid_mutex_t;
-#define fluid_mutex_init(_m)      g_static_mutex_init(&(_m))
-#define fluid_mutex_destroy(_m)   g_static_mutex_free(&(_m))
-#define fluid_mutex_lock(_m)      g_static_mutex_lock(&(_m))
-#define fluid_mutex_unlock(_m)    g_static_mutex_unlock(&(_m))
+/* Recursive locks allowed */
+typedef GStaticRecMutex fluid_mutex_t;
+#define fluid_mutex_init(_m)      g_static_rec_mutex_init(&(_m))
+#define fluid_mutex_destroy(_m)   g_static_rec_mutex_free(&(_m))
+#define fluid_mutex_lock(_m)      g_static_rec_mutex_lock(&(_m))
+#define fluid_mutex_unlock(_m)    g_static_rec_mutex_unlock(&(_m))
 
 
 /* Atomic operations */
@@ -139,6 +141,8 @@ typedef GStaticMutex fluid_mutex_t;
 #define fluid_atomic_int_dec(_pi) g_atomic_int_dec_and_test(_pi)
 #define fluid_atomic_int_compare_and_exchange(_pi, _old, _new) \
   g_atomic_int_compare_and_exchange(_pi, _old, _new)
+#define fluid_atomic_int_exchange_and_add(_pi, _add) \
+  g_atomic_int_exchange_and_add(_pi, _add)
 
 #define fluid_atomic_pointer_get(_pp)    g_atomic_pointer_get(_pp)
 #define fluid_atomic_pointer_compare_and_exchange(_pp, _old, _new) \
@@ -147,10 +151,11 @@ typedef GStaticMutex fluid_mutex_t;
 
 /* Thread private data */
 
-#define fluid_private_t                            GStaticPrivate
+typedef GStaticPrivate fluid_private_t;
 #define fluid_private_init(_priv)                  g_static_private_init(&(_priv))
 #define fluid_private_get(_priv)                   g_static_private_get(&(_priv))
 #define fluid_private_set(_priv, _data, _notify)   g_static_private_set(&(_priv), _data, _notify)
+#define fluid_private_free(_priv)                  g_static_private_free(&(_priv))
 
 
 /**

@@ -77,12 +77,16 @@ enum fluid_synth_status
 #define SYNTH_REVERB_CHANNEL 0
 #define SYNTH_CHORUS_CHANNEL 1
 
-typedef struct _fluid_bank_offset_t fluid_bank_offset_t;
-
-struct _fluid_bank_offset_t {
-	int sfont_id;
-	int offset;
-};
+/**
+ * Structure used for sfont_info field in #fluid_synth_t for each loaded
+ * SoundFont with the SoundFont instance and additional fields.
+ */
+typedef struct _fluid_sfont_info_t {
+  fluid_sfont_t *sfont; /**> Loaded SoundFont */
+  fluid_synth_t *synth; /**> Parent synth */
+  int refcount;         /**> SoundFont reference count (0 if no presets referencing it) */
+  int bankofs;          /**> Bank offset */
+} fluid_sfont_info_t;
 
 /*
  * fluid_synth_t
@@ -109,14 +113,14 @@ struct _fluid_bank_offset_t {
  * chorus{} (Contents change)
  * LADSPA_FxUnit (Contents change)
  *
- * Single thread use only (use only prior to synthesis):
+ * Single thread use only (modify only prior to synthesis):
  * loaders<>
  * midi_router
  *
  * Mutex protected:
  * settings{}
  * sfont<>
- * bank_offsets<>
+ * sfont_info
  * tuning
  * cur_tuning
  * sfont_id
@@ -145,46 +149,42 @@ struct _fluid_bank_offset_t {
 
 struct _fluid_synth_t
 {
-  fluid_thread_id_t synth_thread_id; /** ID of the synthesis thread or FLUID_THREAD_ID_NULL if not yet set */
-  fluid_private_t thread_queues;     /** Thread private data for event queues for each non-synthesis thread queuing events */
-  fluid_event_queue_t *queues[FLUID_MAX_EVENT_QUEUES];   /** Thread event queues (NULL for unused elements) */
+  fluid_thread_id_t synth_thread_id; /**> ID of the synthesis thread or FLUID_THREAD_ID_NULL if not yet set */
+  fluid_private_t thread_queues;     /**> Thread private data for event queues for each non-synthesis thread queuing events */
+  fluid_event_queue_t *queues[FLUID_MAX_EVENT_QUEUES];   /**> Thread event queues (NULL for unused elements) */
 
-  fluid_mutex_t mutex;               /** Lock for multi-thread sensitive variables (not used by synthesis process) */
-  fluid_list_t *queue_pool;          /** List of event queues whose threads have been destroyed and which can be re-used */
+  fluid_mutex_t mutex;               /**> Lock for multi-thread sensitive variables (not used by synthesis process) */
+  fluid_list_t *queue_pool;          /**> List of event queues whose threads have been destroyed and which can be re-used */
 
-  fluid_settings_t* settings;        /** the synthesizer settings */
-  int polyphony;                     /** maximum polyphony */
-  char with_reverb;                  /** Should the synth use the built-in reverb unit? */
-  char with_chorus;                  /** Should the synth use the built-in chorus unit? */
-  char verbose;                      /** Turn verbose mode on? */
-  char dump;                         /** Dump events to stdout to hook up a user interface? */
-  double sample_rate;                /** The sample rate */
-  int midi_channels;                 /** the number of MIDI channels (>= 16) */
-  int audio_channels;                /** the number of audio channels (1 channel=left+right) */
-  int audio_groups;                  /** the number of (stereo) 'sub'groups from the synth.
-					 Typically equal to audio_channels. */
-  int effects_channels;              /** the number of effects channels (>= 2) */
-  int state;                         /** the synthesizer state */
-  unsigned int ticks;                /** the number of audio samples since the start */
-  unsigned int start;                /** the start in msec, as returned by system clock */
+  fluid_settings_t* settings;        /**> the synthesizer settings */
+  int polyphony;                     /**> maximum polyphony */
+  char with_reverb;                  /**> Should the synth use the built-in reverb unit? */
+  char with_chorus;                  /**> Should the synth use the built-in chorus unit? */
+  char verbose;                      /**> Turn verbose mode on? */
+  char dump;                         /**> Dump events to stdout to hook up a user interface? */
+  double sample_rate;                /**> The sample rate */
+  int midi_channels;                 /**> the number of MIDI channels (>= 16) */
+  int audio_channels;                /**> the number of audio channels (1 channel=left+right) */
+  int audio_groups;                  /**> the number of (stereo) 'sub'groups from the synth.
+					  Typically equal to audio_channels. */
+  int effects_channels;              /**> the number of effects channels (>= 2) */
+  int state;                         /**> the synthesizer state */
+  unsigned int ticks;                /**> the number of audio samples since the start */
+  unsigned int start;                /**> the start in msec, as returned by system clock */
 
-  fluid_list_t *loaders;              /** the SoundFont loaders */
-  fluid_list_t* sfont;                /** the loaded SoundFont objects */
-  unsigned int sfont_id;             /** Incrementing ID assigned to each loaded SoundFont */
-  fluid_list_t* bank_offsets;       /** the offsets of the SoundFont banks */
+  fluid_list_t *loaders;             /**> the SoundFont loaders */
+  fluid_list_t* sfont_info;          /**> List of fluid_sfont_info_t for each loaded SoundFont (remains until SoundFont is unloaded) */
+  fluid_hashtable_t *sfont_hash;     /**> Hash of fluid_sfont_t->fluid_sfont_info_t (remains until SoundFont is deleted) */
+  unsigned int sfont_id;             /**> Incrementing ID assigned to each loaded SoundFont */
 
-#if defined(MACOS9)
-  fluid_list_t* unloading;            /** the soundfonts that need to be unloaded */
-#endif
-
-  double gain;                        /** master gain */
-  double st_gain;                     /** Synth thread gain shadow value */
-  fluid_channel_t** channel;          /** the channels */
-  int nvoice;                         /** the length of the synthesis process array (max polyphony allowed) */
-  fluid_voice_t** voice;              /** the synthesis voices */
-  unsigned int noteid;                /** the id is incremented for every new note. it's used for noteoff's  */
+  double gain;                       /**> master gain */
+  double st_gain;                    /**> Synth thread gain shadow value */
+  fluid_channel_t** channel;         /**> the channels */
+  int nvoice;                        /**> the length of the synthesis process array (max polyphony allowed) */
+  fluid_voice_t** voice;             /**> the synthesis voices */
+  unsigned int noteid;               /**> the id is incremented for every new note. it's used for noteoff's  */
   unsigned int storeid;
-  int nbuf;                           /** How many audio buffers are used? (depends on nr of audio channels / groups)*/
+  int nbuf;                          /**> How many audio buffers are used? (depends on nr of audio channels / groups)*/
 
   fluid_real_t** left_buf;
   fluid_real_t** right_buf;
@@ -193,20 +193,20 @@ struct _fluid_synth_t
 
   fluid_revmodel_t* reverb;
   fluid_chorus_t* chorus;
-  int cur;                           /** the current sample in the audio buffers to be output */
-  int dither_index;		/* current index in random dither value buffer: fluid_synth_(write_s16|dither_s16) */
+  int cur;                           /**> the current sample in the audio buffers to be output */
+  int dither_index;		     /**> current index in random dither value buffer: fluid_synth_(write_s16|dither_s16) */
 
-  char outbuf[256];                  /** buffer for message output */
+  char outbuf[256];                  /**> buffer for message output */
   double cpu_load;
 
-  fluid_tuning_t*** tuning;           /** 128 banks of 128 programs for the tunings */
-  fluid_tuning_t* cur_tuning;         /** current tuning in the iteration */
+  fluid_tuning_t*** tuning;          /**> 128 banks of 128 programs for the tunings */
+  fluid_tuning_t* cur_tuning;        /**> current tuning in the iteration */
 
-  fluid_midi_router_t* midi_router;     /* The midi router. Could be done nicer. */
-  fluid_sample_timer_t* sample_timers; /* List of timers triggered after a block has been processed */
+  fluid_midi_router_t* midi_router;  /**> The midi router. Could be done nicer. */
+  fluid_sample_timer_t* sample_timers; /**> List of timers triggered after a block has been processed */
 
 #ifdef LADSPA
-  fluid_LADSPA_FxUnit_t* LADSPA_FxUnit; /** Effects unit for LADSPA support */
+  fluid_LADSPA_FxUnit_t* LADSPA_FxUnit; /**> Effects unit for LADSPA support */
 #endif
 };
 
