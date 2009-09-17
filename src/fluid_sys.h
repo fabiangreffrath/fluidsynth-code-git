@@ -112,7 +112,8 @@ typedef int (*fluid_timer_callback_t)(void* data, unsigned int msec);
 typedef struct _fluid_timer_t fluid_timer_t;
 
 fluid_timer_t* new_fluid_timer(int msec, fluid_timer_callback_t callback,
-                               void* data, int new_thread, int auto_destroy);
+                               void* data, int new_thread, int auto_destroy,
+                               int high_priority);
 
 int delete_fluid_timer(fluid_timer_t* timer);
 int fluid_timer_join(fluid_timer_t* timer);

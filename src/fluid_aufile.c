@@ -101,7 +101,7 @@ new_fluid_file_audio_driver(fluid_settings_t* settings,
 
 
 	msec = (int) (0.5 + dev->period_size / dev->sample_rate * 1000.0);
-	dev->timer = new_fluid_timer(msec, fluid_file_audio_run_s16, (void*) dev, 1, 0);
+	dev->timer = new_fluid_timer(msec, fluid_file_audio_run_s16, (void*) dev, TRUE, FALSE, TRUE);
 	if (dev->timer == NULL) {
 		FLUID_LOG(FLUID_PANIC, "Couldn't create the audio thread.");
 		goto error_recovery;

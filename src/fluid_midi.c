@@ -1378,7 +1378,7 @@ int fluid_player_play(fluid_player_t* player)
 
 	if (player->use_system_timer) {
 		player->system_timer = new_fluid_timer((int) player->deltatime, fluid_player_callback,
-					(void*) player, 1, 0);
+					(void*) player, TRUE, FALSE, TRUE);
 		if (player->system_timer == NULL) {
 			return FLUID_FAILED;
 		}

@@ -34,7 +34,10 @@ enum fluid_event_queue_elem
   FLUID_EVENT_QUEUE_ELEM_POLYPHONY,     /**< Synth polyphony event. Uses ival field of event value */
   FLUID_EVENT_QUEUE_ELEM_GEN,           /**< Generator event. Uses gen field of event value */
   FLUID_EVENT_QUEUE_ELEM_PRESET,        /**< Preset set event. Uses preset field of event value */
-  FLUID_EVENT_QUEUE_ELEM_STOP_VOICES    /**< Stop voices event. Uses ival field of event value */
+  FLUID_EVENT_QUEUE_ELEM_STOP_VOICES,   /**< Stop voices event. Uses ival field of event value */
+
+  /* Return events (synth thread to non-synth process thread) */
+  FLUID_EVENT_QUEUE_ELEM_FREE_PRESET    /**< Free a preset event.  Uses pval field of event value */
 };
 
 /**
@@ -71,6 +74,7 @@ typedef struct
     fluid_event_preset_t preset;        /**< If type == #FLUID_EVENT_QUEUE_ELEM_PRESET */
     double dval;                /**< A floating point payload value */
     int ival;                   /**< An integer payload value */
+    void *pval;                 /**< A pointer payload value */
   };
 } fluid_event_queue_elem_t;
 

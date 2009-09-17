@@ -160,6 +160,7 @@ fluid_channel_init_ctrl(fluid_channel_t* chan, int is_all_ctrl_off)
   }
 }
 
+/* Only called by delete_fluid_synth(), so no need to queue a preset free event */
 int
 delete_fluid_channel(fluid_channel_t* chan)
 {
@@ -175,14 +176,31 @@ fluid_channel_reset(fluid_channel_t* chan)
   fluid_channel_init_ctrl(chan, 0);
 }
 
+/* Should only be called from synthesis context */
 int
 fluid_channel_set_preset(fluid_channel_t* chan, fluid_preset_t* preset)
 {
-  fluid_preset_notify(chan->preset, FLUID_PRESET_UNSELECTED, chan->channum);
-  fluid_preset_notify(preset, FLUID_PRESET_SELECTED, chan->channum);
+  fluid_event_queue_elem_t *event;
 
-  if (chan->preset) delete_fluid_preset (chan->preset);
+  fluid_preset_notify (chan->preset, FLUID_PRESET_UNSELECTED, chan->channum);
+
+  if (chan->preset)     /* Queue preset free (shouldn't free() in synth context) */
+  {
+    event = fluid_event_queue_get_inptr (chan->synth->return_queue);
+    if (!event)
+    {
+      FLUID_LOG (FLUID_ERR, "Synth return event queue full");
+      return FLUID_FAILED;
+    }
+
+    event->type = FLUID_EVENT_QUEUE_ELEM_FREE_PRESET;
+    event->pval = chan->preset;
+    fluid_event_queue_next_inptr (chan->synth->return_queue);
+  }
+
   chan->preset = preset;
+
+  fluid_preset_notify (preset, FLUID_PRESET_SELECTED, chan->channum);
 
   return FLUID_OK;
 }

@@ -155,6 +155,8 @@ struct _fluid_synth_t
 
   fluid_mutex_t mutex;               /**> Lock for multi-thread sensitive variables (not used by synthesis process) */
   fluid_list_t *queue_pool;          /**> List of event queues whose threads have been destroyed and which can be re-used */
+  fluid_event_queue_t *return_queue; /**> Event queue for events from synthesis thread to non-synthesis threads (memory frees, etc) */
+  fluid_timer_t *return_queue_timer; /**> Timer thread to process return event queue */
 
   fluid_settings_t* settings;        /**> the synthesizer settings */
   int polyphony;                     /**> maximum polyphony */
@@ -173,7 +175,7 @@ struct _fluid_synth_t
   unsigned int start;                /**> the start in msec, as returned by system clock */
 
   fluid_list_t *loaders;             /**> the SoundFont loaders */
-  fluid_list_t* sfont_info;          /**> List of fluid_sfont_info_t for each loaded SoundFont (remains until SoundFont is unloaded) */
+  fluid_list_t *sfont_info;          /**> List of fluid_sfont_info_t for each loaded SoundFont (remains until SoundFont is unloaded) */
   fluid_hashtable_t *sfont_hash;     /**> Hash of fluid_sfont_t->fluid_sfont_info_t (remains until SoundFont is deleted) */
   unsigned int sfont_id;             /**> Incrementing ID assigned to each loaded SoundFont */
 
