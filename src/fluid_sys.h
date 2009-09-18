@@ -139,7 +139,7 @@ typedef GStaticRecMutex fluid_mutex_t;
 #define fluid_atomic_int_add(_pi, _val) g_atomic_int_add(_pi, _val)
 #define fluid_atomic_int_get(_pi) g_atomic_int_get(_pi)
 #define fluid_atomic_int_set(_pi, _val) g_atomic_int_set(_pi, _val)
-#define fluid_atomic_int_dec(_pi) g_atomic_int_dec_and_test(_pi)
+#define fluid_atomic_int_dec_and_test(_pi) g_atomic_int_dec_and_test(_pi)
 #define fluid_atomic_int_compare_and_exchange(_pi, _old, _new) \
   g_atomic_int_compare_and_exchange(_pi, _old, _new)
 #define fluid_atomic_int_exchange_and_add(_pi, _add) \

@@ -148,7 +148,7 @@ fluid_event_queue_get_outptr (fluid_event_queue_t *queue)
 FLUID_INLINE void
 fluid_event_queue_next_outptr (fluid_event_queue_t *queue)
 {
-  fluid_atomic_int_dec (&queue->count);
+  fluid_atomic_int_dec_and_test (&queue->count);
 
   if (++queue->out == queue->totalcount)
     queue->out = 0;

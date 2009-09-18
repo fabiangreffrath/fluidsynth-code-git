@@ -3142,7 +3142,6 @@ fluid_synth_sfload(fluid_synth_t* synth, const char* filename, int reset_presets
 
       fluid_mutex_lock (synth->mutex);  /* ++ Lock sfont_id and sfont list */
       sfont->id = sfont_id = ++synth->sfont_id;
-      sfont_info->refcount++;   /* ++ Reference for sfont_info list */
       synth->sfont_info = fluid_list_prepend(synth->sfont_info, sfont_info);   /* prepend to list */
       fluid_hashtable_insert (synth->sfont_hash, sfont, sfont_info);       /* Hash sfont->sfont_info */
       fluid_mutex_unlock (synth->mutex);        /* -- unlock */
@@ -3174,7 +3173,7 @@ new_fluid_sfont_info (fluid_synth_t *synth, fluid_sfont_t *sfont)
 
   sfont_info->sfont = sfont;
   sfont_info->synth = synth;
-  sfont_info->refcount = 0;
+  sfont_info->refcount = 1;     /* Start with refcount of 1 for owning synth */
   sfont_info->bankofs = 0;
 
   return (sfont_info);
@@ -3447,8 +3446,8 @@ fluid_synth_sfcount(fluid_synth_t* synth)
  * @param num SoundFont index on the stack (starting from 0 for top of stack).
  * @return SoundFont instance or NULL if invalid index
  *
- * NOTE: Caller should be certain that SoundFont is not deleted for the duration
- * of use of the returned pointer.
+ * NOTE: Caller should be certain that SoundFont is not deleted (unloaded) for
+ * the duration of use of the returned pointer.
  */
 fluid_sfont_t *
 fluid_synth_get_sfont(fluid_synth_t* synth, unsigned int num)
@@ -3472,8 +3471,8 @@ fluid_synth_get_sfont(fluid_synth_t* synth, unsigned int num)
  * @param id SoundFont ID
  * @return SoundFont instance or NULL if invalid ID
  *
- * NOTE: Caller should be certain that SoundFont is not deleted for the duration
- * of use of the returned pointer.
+ * NOTE: Caller should be certain that SoundFont is not deleted (unloaded) for
+ * the duration of use of the returned pointer.
  */
 fluid_sfont_t *
 fluid_synth_get_sfont_by_id(fluid_synth_t* synth, unsigned int id)
@@ -3502,8 +3501,8 @@ fluid_synth_get_sfont_by_id(fluid_synth_t* synth, unsigned int id)
  * @param name Name of SoundFont
  * @return SoundFont instance or NULL if invalid name
  *
- * NOTE: Caller should be certain that SoundFont is not deleted for the duration
- * of use of the returned pointer.
+ * NOTE: Caller should be certain that SoundFont is not deleted (unloaded) for
+ * the duration of use of the returned pointer.
  */
 fluid_sfont_t *
 fluid_synth_get_sfont_by_name(fluid_synth_t* synth, char *name)
