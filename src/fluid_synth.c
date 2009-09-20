@@ -767,9 +767,13 @@ delete_fluid_synth(fluid_synth_t* synth)
 
   synth->state = FLUID_SYNTH_STOPPED;
 
-  /* Stop return event queue thread */
+  /* Stop return event queue thread, and process remaining events */
   if (synth->return_queue_timer)
     delete_fluid_timer (synth->return_queue_timer);
+  if (synth->return_queue) {
+    fluid_synth_return_event_process_callback(NULL, 0);
+    FLUID_FREE(synth->return_queue);
+  }
 
   /* turn off all voices, needed to unload SoundFont data */
   if (synth->voice != NULL) {
@@ -874,7 +878,7 @@ delete_fluid_synth(fluid_synth_t* synth)
       if (synth->tuning[i] != NULL) {
 	for (k = 0; k < 128; k++) {
 	  if (synth->tuning[i][k] != NULL) {
-	    FLUID_FREE(synth->tuning[i][k]);
+	    delete_fluid_tuning(synth->tuning[i][k]);
 	  }
 	}
 	FLUID_FREE(synth->tuning[i]);
