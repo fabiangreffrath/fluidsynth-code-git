@@ -4133,19 +4133,23 @@ fluid_synth_setstr(fluid_synth_t* synth, char* name, char* str)
 }
 
 /**
- * Convenience function to get a string setting of a synth.
+ * Convenience function to duplicate a string setting of a synth.
  * @param synth FluidSynth instance
  * @param name Name of setting parameter
- * @param str Location to store a pointer to the string value
+ * @param str Location to store a pointer to the newly allocated string value
  * @return FLUID_OK on success, FLUID_FAILED otherwise
+ *
+ * The returned string is owned by the caller and should be freed with free()
+ * when finished with it.
  */
 int
-fluid_synth_getstr(fluid_synth_t* synth, char* name, char** str)
+fluid_synth_dupstr(fluid_synth_t* synth, char* name, char** str)
 {
   fluid_return_val_if_fail (synth != NULL, FLUID_FAILED);
   fluid_return_val_if_fail (name != NULL, FLUID_FAILED);
+  fluid_return_val_if_fail (str != NULL, FLUID_FAILED);
 
-  return fluid_settings_getstr(synth->settings, name, str);
+  return fluid_settings_dupstr(synth->settings, name, str);
 }
 
 /**

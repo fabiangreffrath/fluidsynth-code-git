@@ -260,19 +260,18 @@ void delete_fluid_shell(fluid_shell_t* shell)
 int fluid_shell_run(fluid_shell_t* shell)
 {
   char workline[FLUID_WORKLINELENGTH];
-  char* prompt = "";
+  char* prompt = NULL;
   int cont = 1;
   int errors = 0;
   int n;
 
-  if (shell->settings) {
-    fluid_settings_getstr(shell->settings, "shell.prompt", &prompt);
-  }
+  if (shell->settings)
+    fluid_settings_dupstr(shell->settings, "shell.prompt", &prompt);    /* ++ alloc prompt */
 
   /* handle user input */
   while (cont) {
 
-    n = fluid_istream_readline(shell->in, prompt, workline, FLUID_WORKLINELENGTH);
+    n = fluid_istream_readline(shell->in, prompt ? prompt : "", workline, FLUID_WORKLINELENGTH);
 
     if (n < 0) {
       break;
@@ -304,6 +303,8 @@ int fluid_shell_run(fluid_shell_t* shell)
        break;
     }
   }
+
+  if (prompt) FLUID_FREE (prompt);      /* -- free prompt */
 
   return errors;
 }
@@ -1238,8 +1239,9 @@ fluid_handle_get(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 
   case FLUID_STR_TYPE: {
     char* s;
-    fluid_synth_getstr(synth, av[0], &s);
-    fluid_ostream_printf(out, "%s", s);
+    fluid_synth_dupstr(synth, av[0], &s);       /* ++ alloc string */
+    fluid_ostream_printf(out, "%s", s ? s : "NULL");
+    if (s) FLUID_FREE (s);      /* -- free string */
     break;
   }
 
@@ -1295,8 +1297,9 @@ static void fluid_handle_settings_iter2(void* data, char* name, int type)
 
   case FLUID_STR_TYPE: {
     char* s;
-    fluid_synth_getstr(d->synth, name, &s);
-    fluid_ostream_printf(d->out, "%s\n", s);
+    fluid_synth_dupstr(d->synth, name, &s);     /* ++ alloc string */
+    fluid_ostream_printf(d->out, "%s\n", s ? s : "NULL");
+    if (s) FLUID_FREE (s);      /* -- free string */
     break;
   }
   }
@@ -1384,12 +1387,14 @@ fluid_handle_info(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 
   case FLUID_STR_TYPE: {
     char *s;
-    fluid_settings_getstr(settings, av[0], &s);
+    fluid_settings_dupstr(settings, av[0], &s);         /* ++ alloc string */
     fluid_ostream_printf(out, "%s:\n", av[0]);
     fluid_ostream_printf(out, "Type:          string\n");
-    fluid_ostream_printf(out, "Value:         %s\n", s);
+    fluid_ostream_printf(out, "Value:         %s\n", s ? s : "NULL");
     fluid_ostream_printf(out, "Default value: %s\n",
 			fluid_settings_getstr_default(settings, av[0]));
+
+    if (s) FLUID_FREE (s);
 
     data.out = out;
     data.first = 1;

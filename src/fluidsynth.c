@@ -183,15 +183,20 @@ void fast_render_loop(fluid_settings_t* settings, fluid_synth_t* synth, fluid_pl
   int period_size = 0;
 
   fluid_settings_getint(settings, "audio.period-size", &period_size);
-  fluid_settings_getstr(settings, "audio.file.name", &filename);
+  fluid_settings_dupstr(settings, "audio.file.name", &filename);        /* ++ alloc file name */
 
   if (filename == NULL || period_size <= 0) {
     fprintf(stderr, "Failed to fetch parameters for file renderer\n");
+    if (filename) FLUID_FREE (filename);        /* -- free file name */
+    return;
   }
 
   renderer = new_fluid_file_renderer(synth, filename, period_size);
+
+  FLUID_FREE (filename);        /* -- free file name */
+
   if (!renderer) {
-  return;
+    return;
   }
 
   while (fluid_player_get_status(player) == FLUID_PLAYER_PLAYING) {
