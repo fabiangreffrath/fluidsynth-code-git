@@ -109,8 +109,6 @@ typedef struct _fluid_sfont_info_t {
  * nbuf
  * left_buf[], right_buf[] (Contents change)
  * fx_left_buf[], fx_right_buf[] (Contents change)
- * reverb{} (Contents change)
- * chorus{} (Contents change)
  * LADSPA_FxUnit (Contents change)
  *
  * Single thread use only (modify only prior to synthesis):
@@ -118,13 +116,14 @@ typedef struct _fluid_sfont_info_t {
  * midi_router
  *
  * Mutex protected:
- * settings{}
- * sfont<>
- * sfont_info
+ * settings{} (has its own mutex)
+ * sfont_info<>
  * tuning
  * cur_tuning
  * sfont_id
  * gain
+ * reverb_roomsize, reverb_damping, reverb_width, reverb_level
+ * chorus_nr, chorus_level, chorus_speed, chorus_depth, chorus_type
  *
  * Atomic int operations:
  * ----------------------
@@ -140,6 +139,8 @@ typedef struct _fluid_sfont_info_t {
  * Only synth thread changes
  * -------------------------
  * ticks
+ * reverb{}
+ * chorus{}
  * cur
  * dither_index
  * cpu_load
@@ -195,6 +196,18 @@ struct _fluid_synth_t
 
   fluid_revmodel_t* reverb;
   fluid_chorus_t* chorus;
+
+  float reverb_roomsize;             /**> Shadow of reverb roomsize */
+  float reverb_damping;              /**> Shadow of reverb damping */
+  float reverb_width;                /**> Shadow of reverb width */
+  float reverb_level;                /**> Shadow of reverb level */
+
+  int chorus_nr;                     /**> Shadow of chorus number */
+  float chorus_level;                /**> Shadow of chorus level */
+  float chorus_speed;                /**> Shadow of chorus speed */
+  float chorus_depth;                /**> Shadow of chorus depth */
+  int chorus_type;                   /**> Shadow of chorus type */
+
   int cur;                           /**> the current sample in the audio buffers to be output */
   int dither_index;		     /**> current index in random dither value buffer: fluid_synth_(write_s16|dither_s16) */
 
@@ -230,9 +243,6 @@ int fluid_synth_setint(fluid_synth_t* synth, char* name, int val);
 /** returns 1 if the value exists, 0 otherwise */
 int fluid_synth_getint(fluid_synth_t* synth, char* name, int* val);
 
-
-int fluid_synth_set_reverb_preset(fluid_synth_t* synth, int num);
-
 fluid_preset_t* fluid_synth_find_preset(fluid_synth_t* synth,
 				      unsigned int banknum,
 				      unsigned int prognum);
@@ -246,6 +256,13 @@ void fluid_synth_print_voice(fluid_synth_t* synth);
 void fluid_synth_dither_s16(int *dither_index, int len, float* lin, float* rin,
 			    void* lout, int loff, int lincr,
 			    void* rout, int roff, int rincr);
+
+int fluid_synth_set_reverb_preset(fluid_synth_t* synth, int num);
+int fluid_synth_set_reverb_full(fluid_synth_t* synth, int set, double roomsize,
+                                double damping, double width, double level);
+
+int fluid_synth_set_chorus_full(fluid_synth_t* synth, int set, int nr, double level,
+                                double speed, double depth_ms, int type);
 
 fluid_sample_timer_t* new_fluid_sample_timer(fluid_synth_t* synth, fluid_timer_callback_t callback, void* data);
 int delete_fluid_sample_timer(fluid_synth_t* synth, fluid_sample_timer_t* timer);

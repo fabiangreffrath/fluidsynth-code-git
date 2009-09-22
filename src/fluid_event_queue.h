@@ -30,14 +30,14 @@
 enum fluid_event_queue_elem
 {
   FLUID_EVENT_QUEUE_ELEM_MIDI,          /**< MIDI event. Uses midi field of event value */
-  FLUID_EVENT_QUEUE_ELEM_GAIN,          /**< Synth gain event. Uses dval field of event value */
+  FLUID_EVENT_QUEUE_ELEM_GAIN,          /**< Synth gain set or return event. Uses dval field of event value */
   FLUID_EVENT_QUEUE_ELEM_POLYPHONY,     /**< Synth polyphony event. Uses ival field of event value */
   FLUID_EVENT_QUEUE_ELEM_GEN,           /**< Generator event. Uses gen field of event value */
   FLUID_EVENT_QUEUE_ELEM_PRESET,        /**< Preset set event. Uses preset field of event value */
   FLUID_EVENT_QUEUE_ELEM_STOP_VOICES,   /**< Stop voices event. Uses ival field of event value */
-
-  /* Return events (synth thread to non-synth process thread) */
-  FLUID_EVENT_QUEUE_ELEM_FREE_PRESET    /**< Free a preset event.  Uses pval field of event value */
+  FLUID_EVENT_QUEUE_ELEM_REVERB,        /**< Reverb set or return event. Uses reverb field of event value */
+  FLUID_EVENT_QUEUE_ELEM_CHORUS,        /**< Chorus set or return event. Uses chorus field of event value */
+  FLUID_EVENT_QUEUE_ELEM_FREE_PRESET    /**< Free a preset return event.  Uses pval field of event value */
 };
 
 /**
@@ -61,6 +61,32 @@ typedef struct
 } fluid_event_preset_t;
 
 /**
+ * Reverb assignment structure.
+ */
+typedef struct
+{
+  char set;           /**< Bit 0: roomsize, 1: damping, 2: width, 3: level */
+  float roomsize;
+  float damping;
+  float width;
+  float level;
+} fluid_event_reverb_t;
+
+/**
+ * Chorus assignment structure.
+ */
+typedef struct
+{
+  char set;           /**< Bit 0: nr, 1: type, 2: level, 3: speed, 4: depth */
+  char nr;
+  char type;
+  float level;
+  float speed;
+  float depth;
+} fluid_event_chorus_t;
+
+
+/**
  * Event queue element structure.
  */
 typedef struct
@@ -72,6 +98,8 @@ typedef struct
     fluid_midi_event_t midi;    /**< If type == #FLUID_EVENT_QUEUE_ELEM_MIDI */
     fluid_event_gen_t gen;      /**< If type == #FLUID_EVENT_QUEUE_ELEM_GEN */
     fluid_event_preset_t preset;        /**< If type == #FLUID_EVENT_QUEUE_ELEM_PRESET */
+    fluid_event_reverb_t reverb;        /**< If type == #FLUID_EVENT_QUEUE_ELEM_REVERB */
+    fluid_event_chorus_t chorus;        /**< If type == #FLUID_EVENT_QUEUE_ELEM_CHORUS */
     double dval;                /**< A floating point payload value */
     int ival;                   /**< An integer payload value */
     void *pval;                 /**< A pointer payload value */

@@ -685,7 +685,8 @@ fluid_handle_reverbsetroomsize(fluid_synth_t* synth, int ac, char** av, fluid_os
     fluid_ostream_printf(out, "rev_setroomsize: Room size too big!\n");
     return -1;
   }
-  fluid_revmodel_setroomsize(synth->reverb, room_size);
+  fluid_synth_set_reverb_full (synth, FLUID_REVMODEL_SET_ROOMSIZE,
+                               room_size, 0.0, 0.0, 0.0);
   return 0;
 }
 
@@ -705,7 +706,8 @@ fluid_handle_reverbsetdamp(fluid_synth_t* synth, int ac, char** av, fluid_ostrea
     fluid_ostream_printf(out, "rev_setdamp: damp must be between 0 and 1!\n");
     return -1;
   }
-  fluid_revmodel_setdamp(synth->reverb, damp);
+  fluid_synth_set_reverb_full (synth, FLUID_REVMODEL_SET_DAMPING,
+                               0.0, damp, 0.0, 0.0);
   return 0;
 }
 
@@ -725,7 +727,8 @@ fluid_handle_reverbsetwidth(fluid_synth_t* synth, int ac, char** av, fluid_ostre
     fluid_ostream_printf(out, "rev_setroomsize: Too wide! (0..100)\n");
     return 0;
   }
-  fluid_revmodel_setwidth(synth->reverb, width);
+  fluid_synth_set_reverb_full (synth, FLUID_REVMODEL_SET_WIDTH,
+                               0.0, 0.0, width, 0.0);
   return 0;
 }
 
@@ -745,7 +748,8 @@ fluid_handle_reverbsetlevel(fluid_synth_t* synth, int ac, char** av, fluid_ostre
     fluid_ostream_printf(out, "rev_setlevel: Value too high! (Value of 10 =+20 dB)\n");
     return 0;
   }
-  fluid_revmodel_setlevel(synth->reverb, level);
+  fluid_synth_set_reverb_full (synth, FLUID_REVMODEL_SET_LEVEL,
+                               0.0, 0.0, 0.0, level);
   return 0;
 }
 
@@ -784,8 +788,7 @@ fluid_handle_chorusnr(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t o
     return -1;
   }
   nr = atoi(av[0]);
-  fluid_chorus_set_nr(synth->chorus, nr);
-  return fluid_chorus_update(synth->chorus);
+  return fluid_synth_set_chorus_full (synth, FLUID_CHORUS_SET_NR, nr, 0.0, 0.0, 0.0, 0);
 }
 
 /* Purpose:
@@ -799,9 +802,7 @@ fluid_handle_choruslevel(fluid_synth_t* synth, int ac, char** av, fluid_ostream_
     return -1;
   }
   level = atof(av[0]);
-  fluid_chorus_set_level(synth->chorus, level);
-  return fluid_chorus_update(synth->chorus);
-
+  return fluid_synth_set_chorus_full (synth, FLUID_CHORUS_SET_LEVEL, 0, level, 0.0, 0.0, 0);
 }
 
 /* Purpose:
@@ -815,8 +816,7 @@ fluid_handle_chorusspeed(fluid_synth_t* synth, int ac, char** av, fluid_ostream_
     return -1;
   }
   speed = atof(av[0]);
-  fluid_chorus_set_speed_Hz(synth->chorus, speed);
-  return fluid_chorus_update(synth->chorus);
+  return fluid_synth_set_chorus_full (synth, FLUID_CHORUS_SET_SPEED, 0, 0.0, speed, 0.0, 0);
 }
 
 /* Purpose:
@@ -830,8 +830,7 @@ fluid_handle_chorusdepth(fluid_synth_t* synth, int ac, char** av, fluid_ostream_
     return -1;
   }
   depth = atof(av[0]);
-  fluid_chorus_set_depth_ms(synth->chorus, depth);
-  return fluid_chorus_update(synth->chorus);
+  return fluid_synth_set_chorus_full (synth, FLUID_CHORUS_SET_DEPTH, 0, 0.0, 0.0, depth, 0);
 }
 
 int
